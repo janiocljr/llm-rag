@@ -1,0 +1,54 @@
+# ── Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# ── Virtual environments ───────────────────────────────────────────
+.venv/
+venv/
+env/
+
+# ── Environment variables (secrets) ───────────────────────────────
+.env
+backend/.env
+
+# ── Model files (large binaries — download separately) ─────────────
+backend/models/*.gguf
+backend/models/*.bin
+*.gguf
+*.bin
+
+# ── Generated data / index (rebuild via /api/v1/ingest) ────────────
+backend/data/index/faiss.index
+backend/data/index/chunks_metadata.json
+backend/data/index/metadata.pkl
+backend/data/index/tables/
+
+# ── User PDFs ──────────────────────────────────────────────────────
+backend/data/pdfs/*.pdf
+
+# ── OS files ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── IDE ────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ── Testing / coverage ────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Build / packaging ─────────────────────────────────────────────
+dist/
+build/
+*.egg-info/
+
+# ── Misc ───────────────────────────────────────────────────────────
+.python-version

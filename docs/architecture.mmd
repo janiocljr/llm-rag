@@ -1,0 +1,74 @@
+flowchart LR
+  %% Frontend
+  U[User / Browser]
+  subgraph FRONTEND[Frontend - Streamlit]
+    direction TB
+    FE_ST[Streamlit UI frontend rag_chat]
+    FE_API_CLIENT[APIClient frontend api_client]
+  end
+  U --> FE_ST
+  FE_ST --> FE_API_CLIENT
+
+  %% Backend
+  subgraph BACKEND[Backend - FastAPI - uvicorn]
+    direction TB
+    BE_API[API routes api v1]
+    BE_PIPE[RAGPipeline pipeline]
+    BE_MEM[MemoryOrchestrator chroma mongo optional]
+    BE_START[start scripts]
+  end
+
+  FE_API_CLIENT -->|HTTP / SSE| BE_API
+  BE_API --> BE_PIPE
+  BE_API --> BE_MEM
+  BE_START --> BACKEND
+
+  %% Pipeline internals
+  subgraph PIPELINE_NODES[RAGPipeline internals]
+    direction LR
+    ING[PDF Ingester]
+    EMB[Embedder models e5 or bge device mps cpu]
+    VS[VectorStore FAISS]
+    CHR[ChromaDB optional]
+    MMR[MMR re-rank prompt builder]
+    LLM[Local LLM gguf llama-cpp-python]
+  end
+
+  BE_PIPE --> PIPELINE_NODES
+  ING --> EMB --> VS
+  VS --> MMR --> LLM
+  PIPELINE_NODES -->|optional| CHR
+  BE_MEM --> CHR
+  BE_MEM -->|persists| Mongo[(MongoDB collections)]
+
+  %% Persistence & resources
+  subgraph PERSISTENCE[Persistence]
+    FAISS_FILE[faiss index files]
+    MODELS_DIR[models gguf]
+    PDF_DIR[data pdfs]
+    CHROMA_COLLECTIONS[chroma collections]
+    MONGO_DB[mongodb collections]
+  end
+
+  VS --> FAISS_FILE
+  LLM --> MODELS_DIR
+  ING --> PDF_DIR
+  CHR --> CHROMA_COLLECTIONS
+  BE_MEM --> MONGO_DB
+
+  %% Flows
+  FE_ST -->|POST /api/v1/query| BE_API
+  BE_API -->|POST ingest| BE_PIPE
+  BE_API -->|POST query stream SSE| BE_PIPE -->|stream tokens| FE_ST
+
+  %% Ops / Environment
+  classDef note fill:#f9f,stroke:#333,stroke-width:1px;
+  ENV[Environment tunables EMBEDDING_MODEL EMBEDDING_DIM EMBEDDING_DEVICE EMBEDDING_BATCH_SIZE LLM_MAX_NEW_TOKENS LLM_N_THREADS LLM_N_GPU_LAYERS RETRIEVAL_FINAL_K USE_CHROMA]:::note
+  RESOURCE[Runtime notes LLM CPU-bound embeddings device FAISS FlatIP]:::note
+
+  BE_START --> ENV
+  LLM --> RESOURCE
+  EMB --> RESOURCE
+
+  %% High-level labels
+  class BACKEND,FRONTEND,PIPELINE_NODES,PERSISTENCE note;

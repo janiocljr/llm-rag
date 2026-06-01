@@ -1,0 +1,163 @@
+version: "3.9"
+
+# ==============================================================================
+# RAG System — Docker Compose
+# ==============================================================================
+# Usage:
+#   docker compose up --build         # start API server
+#   docker compose run rag-ingest     # run one-shot ingestion job
+#   docker compose run rag-tests      # run test suite
+#
+# Volumes:
+#   ./data/pdfs   → mount your PDF files here before starting
+#   ./data/index  → FAISS index persisted between restarts
+#   ./models      → GGUF model file(s)
+# ==============================================================================
+
+services:
+
+  # --------------------------------------------------------------------------
+  # API server
+  # --------------------------------------------------------------------------
+  rag-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: rag-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Source PDFs (read-only — we never modify originals)
+      - ./data/pdfs:/app/data/pdfs:ro
+      # Persistent FAISS index
+      - ./data/index:/app/data/index
+      # Local LLM model weights (read-only)
+      - ./models:/app/models:ro
+    environment:
+      # Override any setting via environment variable
+      - DATA_DIR=/app/data/pdfs
+      - INDEX_DIR=/app/data/index
+      - MODEL_DIR=/app/models
+      - LLM_MODEL_PATH=/app/models/mistral-7b-instruct-v0.2.Q4_K_M.gguf
+      - EMBEDDING_MODEL=BAAI/bge-m3
+      - EMBEDDING_DIM=1024
+      - CHUNK_SIZE=512
+      - CHUNK_OVERLAP=64
+      - SIMILARITY_THRESHOLD=0.35
+      - RETRIEVAL_TOP_K=5
+      - RETRIEVAL_FINAL_K=3
+      - LLM_TEMPERATURE=0.1
+      - LLM_N_THREADS=8
+      # Set LLM_N_GPU_LAYERS=-1 to offload all layers to GPU
+      - LLM_N_GPU_LAYERS=0
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s  # allow time for model loading
+      retries: 3
+    # Uncomment to enable GPU (requires nvidia-container-toolkit)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # --------------------------------------------------------------------------
+  # One-shot ingestion job (run with: docker compose run rag-ingest)
+  # --------------------------------------------------------------------------
+  rag-ingest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: rag-ingest
+    volumes:
+      - ./data/pdfs:/app/data/pdfs:ro
+      - ./data/index:/app/data/index
+    environment:
+      - DATA_DIR=/app/data/pdfs
+      - INDEX_DIR=/app/data/index
+      - MODEL_DIR=/app/models
+      - EMBEDDING_MODEL=BAAI/bge-m3
+      - EMBEDDING_DIM=1024
+      - CHUNK_SIZE=512
+      - CHUNK_OVERLAP=64
+    command: >
+      python -c "
+      from app.core.config import settings;
+      from app.core.pipeline import RAGPipeline;
+      p = RAGPipeline(settings);
+      r = p.ingest(force_reindex=True);
+      print(f'Indexed {r.chunks_indexed} chunks from {r.documents_processed} docs in {r.latency_ms:.0f}ms')
+      "
+    profiles: ["tools"]
+
+  # --------------------------------------------------------------------------
+  # Test runner (run with: docker compose run rag-tests)
+  # --------------------------------------------------------------------------
+  rag-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: rag-tests
+    volumes:
+      - ./tests:/app/tests:ro
+      - ./app:/app/app:ro
+    environment:
+      - EMBEDDING_MODEL=BAAI/bge-m3
+      - EMBEDDING_DIM=1024
+      - LLM_MODEL_PATH=nonexistent.gguf  # stub mode for tests
+    working_dir: /app
+    command: ["python", "-m", "pytest", "tests/", "-v", "--tb=short", "-x"]
+    profiles: ["tools"]
+
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: rag_chromadb
+    restart: unless-stopped
+    ports:
+      - "8200:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - ANONYMIZED_TELEMETRY=False
+      - ALLOW_RESET=True
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mongodb:
+    image: mongo:7.0
+    container_name: rag_mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-ragadmin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-ragpassword}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-rag_knowledge}
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  chroma_data:
+  mongo_data:

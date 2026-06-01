@@ -1,0 +1,134 @@
+# =============================================================================
+# rag-chat-llm — Persistent Memory Stack
+# =============================================================================
+#
+# Services:
+#   chromadb   — vector memory (embeddings + semantic search)
+#   mongodb    — document memory (markdown knowledge base, sessions, notes)
+#   rag-api    — FastAPI backend (connects to both databases)
+#
+# Volumes:
+#   chroma_data  — ChromaDB persistence
+#   mongo_data   — MongoDB persistence
+#   rag_index    — Legacy FAISS index (kept for compatibility)
+#   rag_pdfs     — Source PDF documents
+#   rag_models   — LLM weights
+# =============================================================================
+
+version: "3.9"
+
+# ---------------------------------------------------------------------------
+# Shared network — all services communicate internally
+# ---------------------------------------------------------------------------
+networks:
+  rag_net:
+    driver: bridge
+
+# ---------------------------------------------------------------------------
+# Named volumes — data survives container restarts
+# ---------------------------------------------------------------------------
+volumes:
+  chroma_data:
+    name: rag_chroma_data
+  mongo_data:
+    name: rag_mongo_data
+  rag_index:
+    name: rag_faiss_index
+  rag_pdfs:
+    name: rag_pdf_documents
+  rag_models:
+    name: rag_llm_models
+
+# ---------------------------------------------------------------------------
+# Services
+# ---------------------------------------------------------------------------
+services:
+
+  # ─── ChromaDB ─────────────────────────────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: rag_chromadb
+    restart: unless-stopped
+    networks:
+      - rag_net
+    ports:
+      - "8200:8000"          # exposed on host at :8200 to avoid conflict
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - ANONYMIZED_TELEMETRY=False
+      - ALLOW_RESET=True     # allow collection resets during development
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ─── MongoDB ──────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7.0
+    container_name: rag_mongodb
+    restart: unless-stopped
+    networks:
+      - rag_net
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+      - ./backend/scripts/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-ragadmin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-ragpassword}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-rag_knowledge}
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ─── RAG API ──────────────────────────────────────────────────────────────
+  rag-api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag_api
+    restart: unless-stopped
+    networks:
+      - rag_net
+    ports:
+      - "8000:8000"
+    volumes:
+      - rag_pdfs:/app/data/pdfs:ro
+      - rag_index:/app/data/index
+      - rag_models:/app/models:ro
+    env_file:
+      - ./backend/.env
+    environment:
+      # ChromaDB connection
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: 8000
+      CHROMA_COLLECTION_EMBEDDINGS: pdf_embeddings
+      CHROMA_COLLECTION_MEMORY: chat_memory
+
+      # MongoDB connection
+      MONGO_URI: mongodb://${MONGO_ROOT_USER:-ragadmin}:${MONGO_ROOT_PASSWORD:-ragpassword}@mongodb:27017/${MONGO_DB:-rag_knowledge}?authSource=admin
+      MONGO_DB: ${MONGO_DB:-rag_knowledge}
+
+      # Keep FAISS disabled by default — ChromaDB handles vectors
+      USE_CHROMA: "true"
+      USE_BM25_HYBRID: "true"
+    depends_on:
+      chromadb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 3
