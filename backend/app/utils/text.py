@@ -8,11 +8,11 @@ import unicodedata
 def clean_text(text: str) -> str:
     """Normalize unicode, remove control characters, and collapse whitespace."""
     text = unicodedata.normalize("NFKC", text)
-    # Remove control characters except newline and tab
+
     text = re.sub(r"[^\S\n\t ]+", " ", text)
-    # Collapse multiple newlines
+
     text = re.sub(r"\n{3,}", "\n\n", text)
-    # Collapse multiple spaces
+
     text = re.sub(r" {2,}", " ", text)
     return text.strip()
 

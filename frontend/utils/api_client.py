@@ -11,9 +11,9 @@ class APIClient:
     def __init__(self, base_url: str = "http://localhost:8000", timeout: int = 120):
         self._base = base_url.rstrip("/")
         self._timeout = timeout
-        self._timeout_long = 600  # operações pesadas (ingest)
+        self._timeout_long = 600
 
-    # ── Internal ──────────────────────────────────────────────────────────────
+
 
     def _get(self, path: str) -> dict[str, Any]:
         try:
@@ -51,7 +51,7 @@ class APIClient:
         try:
             with requests.post(url, json=payload, stream=True, timeout=self._timeout_long) as r:
                 r.raise_for_status()
-                # SSE: lines starting with 'data: '
+
                 for raw in r.iter_lines(decode_unicode=True):
                     if raw is None:
                         continue
@@ -100,7 +100,7 @@ class APIClient:
         except Exception as exc:
             return {"error": str(exc)}
 
-    # ── Public ────────────────────────────────────────────────────────────────
+
 
     def health(self) -> dict[str, Any]:
         """GET /health"""
@@ -128,5 +128,5 @@ class APIClient:
                 "top_k": top_k,
                 "similarity_threshold": similarity_threshold,
             },
-            timeout=300,  # LLM inference em CPU pode levar 1-3 min
+            timeout=300,
         )

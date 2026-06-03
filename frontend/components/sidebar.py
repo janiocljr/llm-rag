@@ -28,12 +28,12 @@ def render_sidebar() -> SidebarState:
         st.markdown("# 🤖 RAG Chat")
         st.markdown("---")
 
-        # ── Connection ────────────────────────────────────────────────
+
         st.markdown('<p class="sidebar-section-title">🔌 Conexão</p>', unsafe_allow_html=True)
         state.api_url = st.text_input("URL da API", value="http://localhost:8000")
         state.demo_mode = st.toggle("Modo demo (offline)", value=False)
 
-        # Health check
+
         if not state.demo_mode:
             if st.button("🔍 Verificar conexão", use_container_width=True):
                 client = APIClient(base_url=state.api_url)
@@ -45,7 +45,7 @@ def render_sidebar() -> SidebarState:
 
         st.markdown("---")
 
-        # ── Retrieval params ──────────────────────────────────────────
+
         st.markdown('<p class="sidebar-section-title">⚙️ Parâmetros de Recuperação</p>', unsafe_allow_html=True)
         state.top_k = st.slider("Top-K chunks candidatos", min_value=1, max_value=20, value=12)
         state.similarity_threshold = st.slider(
@@ -56,7 +56,7 @@ def render_sidebar() -> SidebarState:
 
         st.markdown("---")
 
-        # ── Index management ──────────────────────────────────────────
+
         st.markdown('<p class="sidebar-section-title">📂 Índice FAISS</p>', unsafe_allow_html=True)
 
         col1, col2 = st.columns(2)
@@ -90,7 +90,7 @@ def render_sidebar() -> SidebarState:
 
         st.markdown("---")
 
-        # ── View options ──────────────────────────────────────────────
+
         st.markdown('<p class="sidebar-section-title">🖼 Visualização</p>', unsafe_allow_html=True)
         state.show_prompt = st.toggle("Mostrar prompt completo do LLM", value=True)
         state.show_diagram = st.toggle("Mostrar diagrama do pipeline", value=True)

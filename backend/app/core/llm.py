@@ -44,7 +44,7 @@ from app.models.schemas import RetrievedChunk
 
 logger = logging.getLogger(__name__)
 
-# Sentinel string the LLM is told to output when context is insufficient
+
 NOT_FOUND_SENTINEL = "Não encontrei essa informação nos documentos fornecidos."
 
 
@@ -86,9 +86,9 @@ class LocalLLM:
         self.max_new_tokens = max_new_tokens
         self.temperature = temperature
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+
+
+
 
     def generate(self, prompt: str) -> str:
         """
@@ -126,8 +126,8 @@ class LocalLLM:
             )
             return
 
-        # Try the library's streaming API. Different versions yield different
-        # shapes (dicts with 'choices'/'delta' or text strings). Be defensive.
+
+
         try:
             for chunk in self._model(
                 prompt,
@@ -137,11 +137,11 @@ class LocalLLM:
             ):
                 text = ""
                 try:
-                    # Newer llama-cpp-python yields dicts with 'choices'
+
                     if isinstance(chunk, dict):
                         choices = chunk.get("choices") or []
                         if choices:
-                            # delta or text
+
                             ch = choices[0]
                             if isinstance(ch, dict):
                                 if "text" in ch:
@@ -160,14 +160,14 @@ class LocalLLM:
                 if text:
                     yield text
         except TypeError:
-            # Streaming not supported by this binding; fall back to blocking
+
             full = self.generate(prompt)
             yield full
 
 
-# ---------------------------------------------------------------------------
-# Prompt construction
-# ---------------------------------------------------------------------------
+
+
+
 
 def build_prompt(
     question: str,
@@ -194,7 +194,7 @@ def build_prompt(
     audit every token to prevent hallucination.
     """
 
-    # --- Build the context block ---
+
     if retrieved_chunks:
         context_parts = []
         for i, rc in enumerate(retrieved_chunks, 1):
@@ -206,7 +206,7 @@ def build_prompt(
     else:
         context_block = "(No relevant context found in the documents.)"
 
-    # --- Assemble full prompt ---
+
     prompt = (
         f"[INST] <<SYS>>\n"
         f"{system_prompt}\n"

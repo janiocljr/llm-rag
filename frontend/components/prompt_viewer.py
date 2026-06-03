@@ -10,7 +10,7 @@ def render_prompt_viewer(full_prompt: str) -> None:
         st.markdown(
             "Prompt exato que foi construído e enviado ao modelo de linguagem:",
         )
-        # Monospaced, scrollable box via CSS class
+
         escaped = (
             full_prompt
             .replace("&", "&amp;")

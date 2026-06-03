@@ -43,7 +43,7 @@ import pdfplumber
 try:
     import camelot
     _HAS_CAMELOT = True
-except Exception:  # pragma: no cover - optional dependency
+except Exception:  #pragma: no cover - optional dependency
     camelot = None
     _HAS_CAMELOT = False
 import pandas as pd
@@ -52,14 +52,14 @@ from app.models.schemas import DocumentChunk
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Text cleaning helpers
-# ---------------------------------------------------------------------------
+
+
+
 
 _MULTI_SPACE = re.compile(r" {2,}")
 _MULTI_NEWLINE = re.compile(r"\n{3,}")
-_HYPHEN_EOL = re.compile(r"-\n(\w)")      # re-join hyphenated line-breaks
-_PAGE_NUM = re.compile(r"^\s*\d+\s*$", re.MULTILINE)  # lone page number lines
+_HYPHEN_EOL = re.compile(r"-\n(\w)")
+_PAGE_NUM = re.compile(r"^\s*\d+\s*$", re.MULTILINE)
 
 
 def clean_text(raw: str) -> str:
@@ -74,16 +74,16 @@ def clean_text(raw: str) -> str:
     5. Strip leading/trailing whitespace.
     """
     text = unicodedata.normalize("NFC", raw)
-    text = _HYPHEN_EOL.sub(r"\1", text)      # "hyphen-\nated" → "hyphenated"
+    text = _HYPHEN_EOL.sub(r"\1", text)
     text = _PAGE_NUM.sub("", text)
     text = _MULTI_NEWLINE.sub("\n\n", text)
     text = _MULTI_SPACE.sub(" ", text)
     return text.strip()
 
 
-# ---------------------------------------------------------------------------
-# Token estimation (no tokeniser dependency)
-# ---------------------------------------------------------------------------
+
+
+
 
 def estimate_tokens(text: str) -> int:
     """
@@ -96,9 +96,9 @@ def estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
-# ---------------------------------------------------------------------------
-# Recursive character-based splitter
-# ---------------------------------------------------------------------------
+
+
+
 
 class RecursiveCharSplitter:
     """
@@ -111,7 +111,7 @@ class RecursiveCharSplitter:
     def __init__(self, max_tokens: int, overlap_tokens: int):
         self.max_tokens = max_tokens
         self.overlap_tokens = overlap_tokens
-        # Approximate char limits (tokens × 4)
+
         self._max_chars = max_tokens * 4
         self._overlap_chars = overlap_tokens * 4
 
@@ -132,7 +132,7 @@ class RecursiveCharSplitter:
         pieces small enough. If no separator works, force-split at max_chars.
         """
         if estimate_tokens(text) <= self.max_tokens:
-            # Small enough — keep as-is, but merge with previous if tiny
+
             if result and estimate_tokens(result[-1] + " " + text) <= self.max_tokens:
                 result[-1] = result[-1] + " " + text
             else:
@@ -140,7 +140,7 @@ class RecursiveCharSplitter:
             return
 
         if not separators:
-            # Last resort: hard character split
+
             for i in range(0, len(text), self._max_chars - self._overlap_chars):
                 result.append(text[i : i + self._max_chars])
             return
@@ -157,7 +157,7 @@ class RecursiveCharSplitter:
             else:
                 if current:
                     self._split_recursive(current, remaining_seps, result)
-                    # Add overlap: take the last `overlap_chars` of current
+
                     overlap_text = current[-self._overlap_chars :]
                     current = (overlap_text + sep + part).strip()
                 else:
@@ -168,9 +168,9 @@ class RecursiveCharSplitter:
             self._split_recursive(current, remaining_seps, result)
 
 
-# ---------------------------------------------------------------------------
-# PDF loader
-# ---------------------------------------------------------------------------
+
+
+
 
 class PDFIngester:
     """
@@ -205,19 +205,19 @@ class PDFIngester:
                     raw_text = page.extract_text() or ""
                     tables_text = ""
 
-                    # Prefer Camelot for table extraction when available. Camelot
-                    # can reconstruct column structure (DataFrame) using lattice
-                    # or stream modes; fall back to pdfplumber page.extract_tables()
-                    # on any failure or when Camelot finds nothing.
+
+
+
+
                     if _HAS_CAMELOT:
                         try:
-                            # Try lattice first (detects table borders), then stream
+
                             tables = camelot.read_pdf(str(path), pages=str(page_num), flavor="lattice")
                             if not tables or tables.n == 0:
                                 tables = camelot.read_pdf(str(path), pages=str(page_num), flavor="stream")
 
                             if tables and tables.n > 0:
-                                # Resolve tables directory from index_dir or fallback
+
                                 if self._index_dir:
                                     tables_dir = self._index_dir / "tables"
                                 else:
@@ -226,29 +226,29 @@ class PDFIngester:
                                 for t_idx, table in enumerate(tables):
                                     try:
                                         df = table.df
-                                        # save CSV for later inspection
+
                                         csv_name = f"{path.stem}_p{page_num}_t{t_idx+1}.csv"
                                         csv_path = tables_dir / csv_name
                                         try:
                                             df.to_csv(csv_path, index=False)
                                         except Exception:
-                                            # Camelot's df might be non-standard; coerce via pandas
+
                                             pd.DataFrame(df).to_csv(csv_path, index=False)
 
-                                        # Prefer markdown representation for LLMs
+
                                         try:
                                             md = df.to_markdown(index=False)
                                         except Exception:
                                             md = df.to_csv(index=False)
 
-                                        # Store path relative to index_dir (portable)
+
                                         if self._index_dir:
                                             rel_csv = str(csv_path.relative_to(self._index_dir))
                                         else:
-                                            # best-effort: relative to tables_dir parent
+
                                             rel_csv = str(Path("tables") / csv_name)
 
-                                        # yield a dedicated table chunk with CSV path in metadata
+
                                         yield DocumentChunk(
                                             chunk_id=f"{path.stem}_p{page_num}_t{t_idx+1}",
                                             text=md,
@@ -268,7 +268,7 @@ class PDFIngester:
                         except Exception as e:
                             logger.debug(f"Camelot failed on page {page_num}: {e}")
 
-                    # If Camelot not available, failed, or found nothing — use pdfplumber
+
                     if not tables_text:
                         tables = page.extract_tables()
                         for t_idx, table in enumerate(tables):

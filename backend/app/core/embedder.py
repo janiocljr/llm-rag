@@ -10,7 +10,7 @@ from app.models.schemas import DocumentChunk
 
 logger = logging.getLogger(__name__)
 
-# BGE instruction prefix (applied to queries only)
+
 _BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
 _QUERY_PREFIX = "search_query: "
 _DOCUMENT_PREFIX = "search_document: "
@@ -51,9 +51,9 @@ class Embedder:
         self.dim = self._model.get_sentence_embedding_dimension()
         logger.info(f"Embedding model ready — dim={self.dim}, device={resolved_device}")
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
+
+
+
 
     def embed_documents(self, chunks: list[DocumentChunk]) -> np.ndarray:
         """
@@ -73,9 +73,9 @@ class Embedder:
         """
         return self._encode([query], is_query=True)
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
+
+
+
 
     def _encode(self, texts: list[str], is_query: bool) -> np.ndarray:
         """
@@ -94,7 +94,7 @@ class Embedder:
             texts,
             batch_size=self.batch_size,
             show_progress_bar=len(texts) > 100,
-            normalize_embeddings=True,   # L2 normalise → cosine via inner product
+            normalize_embeddings=True,
             convert_to_numpy=True,
         )
         return embeddings.astype(np.float32)

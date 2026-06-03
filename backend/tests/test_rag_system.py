@@ -27,9 +27,9 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+
+
+
 
 
 @pytest.fixture(scope="session")
@@ -68,9 +68,9 @@ def tmp_dir() -> Generator[Path, None, None]:
     shutil.rmtree(d, ignore_errors=True)
 
 
-# ---------------------------------------------------------------------------
-# 1. CHUNKING TESTS
-# ---------------------------------------------------------------------------
+
+
+
 
 
 class TestChunking:
@@ -86,7 +86,7 @@ class TestChunking:
         assert len(chunks) > 0, "Should produce at least one chunk"
         for chunk in chunks:
             tokens = estimate_tokens(chunk)
-            assert tokens <= 120, (  # 20 % tolerance for overlap edge cases
+            assert tokens <= 120, (
                 f"Chunk exceeds max_tokens: {tokens} tokens in '{chunk[:50]}...'"
             )
 
@@ -114,7 +114,7 @@ class TestChunking:
 
         missing = [
             w for w in original_words
-            if len(w) > 5 and w not in combined  # ignore short stop-words
+            if len(w) > 5 and w not in combined  #ignore short stop-words
         ]
         assert len(missing) == 0, f"Words missing from chunks: {missing[:10]}"
 
@@ -132,8 +132,8 @@ class TestChunking:
 
         shared_found = False
         for i in range(len(chunks) - 1):
-            words_a = set(chunks[i].split()[-20:])   # last 20 words of chunk i
-            words_b = set(chunks[i + 1].split()[:20])  # first 20 words of chunk i+1
+            words_a = set(chunks[i].split()[-20:])
+            words_b = set(chunks[i + 1].split()[:20])
             if words_a & words_b:
                 shared_found = True
                 break
@@ -146,7 +146,7 @@ class TestChunking:
 
         ingester = PDFIngester(chunk_size=200, chunk_overlap=20)
 
-        # Create a mock chunk manually to test ID format
+
         chunk = DocumentChunk(
             chunk_id="test_doc_p3_c1",
             text="This is a test chunk with some content.",
@@ -172,13 +172,13 @@ class TestChunking:
 
         assert "ﬁ" not in cleaned, "Unicode ligature should be normalised"
         assert "  " not in cleaned, "Double spaces should be collapsed"
-        # Hyphenated line-break should be joined
+
         assert "understanding" in cleaned or "under-\nstanding" not in cleaned
 
 
-# ---------------------------------------------------------------------------
-# 2. EMBEDDING TESTS
-# ---------------------------------------------------------------------------
+
+
+
 
 
 class TestEmbedder:
@@ -254,9 +254,9 @@ class TestEmbedder:
         assert result.shape == (0, 384)
 
 
-# ---------------------------------------------------------------------------
-# 3. VECTOR STORE TESTS
-# ---------------------------------------------------------------------------
+
+
+
 
 
 class TestVectorStore:
@@ -271,7 +271,7 @@ class TestVectorStore:
         store_dir = tmp_dir / "test_store"
         store = VectorStore(embedding_dim=4, index_dir=store_dir)
 
-        # Deterministic embeddings for predictable tests
+
         chunks = []
         embeddings = []
         texts = [
@@ -292,9 +292,9 @@ class TestVectorStore:
                 char_count=len(text),
                 token_estimate=len(text) // 4,
             ))
-            # Create a simple directional embedding
+
             vec = np.zeros(4, dtype=np.float32)
-            vec[page] = 1.0 - i * 0.05  # slight variation
+            vec[page] = 1.0 - i * 0.05
             vec /= np.linalg.norm(vec)
             embeddings.append(vec)
 
@@ -312,12 +312,12 @@ class TestVectorStore:
     def test_threshold_filters_low_scores(self, store_and_chunks):
         """Results below threshold must not appear."""
         store, chunks, embeddings = store_and_chunks
-        query = embeddings[0:1]  # AI-related query
+        query = embeddings[0:1]
 
         results_high = store.search(query, top_k=5, threshold=0.9)
         results_low = store.search(query, top_k=5, threshold=0.0)
 
-        # High threshold should return fewer results
+
         assert len(results_high) <= len(results_low)
         for r in results_high:
             assert r.score >= 0.9, f"Score {r.score} below threshold 0.9"
@@ -361,13 +361,13 @@ class TestVectorStore:
         candidates = store.search(query, top_k=5, threshold=0.0)
         mmr_result = store.mmr_rerank(candidates, query, final_k=2, lambda_=0.5)
 
-        # MMR should select at most final_k results
+
         assert len(mmr_result) <= 2
 
 
-# ---------------------------------------------------------------------------
-# 4. RETRIEVAL PRECISION@K
-# ---------------------------------------------------------------------------
+
+
+
 
 
 class TestRetrievalPrecision:
@@ -393,7 +393,7 @@ class TestRetrievalPrecision:
 
         embedder = Embedder(model_name="BAAI/bge-small-en-v1.5", batch_size=8)
 
-        # Build corpus: 6 AI-related chunks, 4 finance-related chunks
+
         ai_texts = [
             "Machine learning algorithms learn patterns from training data.",
             "Deep learning uses multiple layers of neural networks.",
@@ -430,13 +430,13 @@ class TestRetrievalPrecision:
             store = VectorStore(embedding_dim=embedder.dim, index_dir=Path(td))
             store.add(all_chunks, embeddings)
 
-            # Query about AI → expect AI chunks in top-k
+
             query_emb = embedder.embed_query(
                 "How do neural networks learn representations?"
             )
             results = store.search(query_emb, top_k=3, threshold=0.0)
 
-            # "Relevant" = first 6 chunks (AI topics)
+
             relevant_ids = {f"c{i}" for i in range(6)}
             retrieved_ids = {r.chunk.chunk_id for r in results}
             intersection = relevant_ids & retrieved_ids
@@ -450,9 +450,9 @@ class TestRetrievalPrecision:
             )
 
 
-# ---------------------------------------------------------------------------
-# 5. OUT-OF-SCOPE / HALLUCINATION GUARD TESTS
-# ---------------------------------------------------------------------------
+
+
+
 
 
 class TestHallucinationGuard:
@@ -471,7 +471,7 @@ class TestHallucinationGuard:
         from app.core.config import Settings
 
         settings = Settings(
-            similarity_threshold=0.99,  # very high → nothing will pass
+            similarity_threshold=0.99,
             retrieval_top_k=3,
             retrieval_final_k=2,
         )
@@ -480,13 +480,13 @@ class TestHallucinationGuard:
             settings.data_dir = Path(td) / "pdfs"
             settings.index_dir = Path(td) / "index"
             settings.model_dir = Path(td) / "models"
-            settings.llm_model_path = "nonexistent.gguf"  # stub mode
+            settings.llm_model_path = "nonexistent.gguf"
 
             settings.data_dir.mkdir(parents=True)
 
             pipeline = RAGPipeline(settings)
 
-            # Manually add a chunk with a known embedding
+
             from app.core.embedder import Embedder
             embedder = Embedder()
             chunk = DocumentChunk(
@@ -502,7 +502,7 @@ class TestHallucinationGuard:
             emb = embedder.embed_documents([chunk])
             pipeline.vector_store.add([chunk], emb)
 
-            # Query about something completely unrelated
+
             response = pipeline.query(QueryRequest(
                 question="What is the chemical formula for water?"
             ))
@@ -529,7 +529,7 @@ class TestHallucinationGuard:
             settings.data_dir.mkdir(parents=True)
 
             pipeline = RAGPipeline(settings)
-            # Empty index — search should return empty list
+
             results = pipeline.vector_store.search(
                 query_embedding=np.zeros((1, settings.embedding_dim), dtype=np.float32),
                 top_k=3,
@@ -538,9 +538,9 @@ class TestHallucinationGuard:
             assert results == [], "Empty store should return empty results"
 
 
-# ---------------------------------------------------------------------------
-# 6. PROMPT CONSTRUCTION TESTS
-# ---------------------------------------------------------------------------
+
+
+
 
 
 class TestPromptConstruction:
@@ -603,9 +603,9 @@ class TestPromptConstruction:
             assert f"doc{i}.pdf" in prompt, f"Source doc{i}.pdf missing from prompt"
 
 
-# ---------------------------------------------------------------------------
-# 7. API INTEGRATION TESTS
-# ---------------------------------------------------------------------------
+
+
+
 
 
 class TestAPI:

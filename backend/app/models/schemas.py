@@ -11,9 +11,9 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# ---------------------------------------------------------------------------
-# Internal domain objects
-# ---------------------------------------------------------------------------
+
+
+
 
 class DocumentChunk(BaseModel):
     """
@@ -35,7 +35,7 @@ class DocumentChunk(BaseModel):
     total_chunks_in_page: int = Field(description="Total chunks on this page (for position context).")
     char_count: int = Field(description="Number of characters in the chunk.")
     token_estimate: int = Field(description="Rough token count (chars / 4).")
-    # Table metadata (optional)
+
     is_table: bool = Field(default=False, description="True for chunks generated from detected tables.")
     table_csv_path: Optional[str] = Field(default=None, description="Filesystem path to CSV extracted from table, if any.")
 
@@ -60,9 +60,9 @@ class RetrievedChunk(BaseModel):
         )
 
 
-# ---------------------------------------------------------------------------
-# API request/response models
-# ---------------------------------------------------------------------------
+
+
+
 
 class QueryRequest(BaseModel):
     """Incoming user query."""

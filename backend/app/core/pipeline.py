@@ -51,25 +51,25 @@ class RAGPipeline:
     def __init__(self, settings: Settings):
         self.settings = settings
 
-        # Ensure directories exist
+
         settings.data_dir.mkdir(parents=True, exist_ok=True)
         settings.index_dir.mkdir(parents=True, exist_ok=True)
         settings.model_dir.mkdir(parents=True, exist_ok=True)
 
-        # Load embedding model
+
         self.embedder = Embedder(
             model_name=settings.embedding_model,
             batch_size=settings.embedding_batch_size,
             device=settings.embedding_device,
         )
 
-        # Load or create vector store
+
         self.vector_store = VectorStore(
             embedding_dim=settings.embedding_dim,
             index_dir=settings.index_dir,
         )
 
-        # Load LLM
+
         self.llm = LocalLLM(
             model_path=settings.llm_model_path,
             context_length=settings.llm_context_length,
@@ -79,16 +79,16 @@ class RAGPipeline:
             n_threads=settings.llm_n_threads,
         )
 
-        # PDF ingester
+
         self.ingester = PDFIngester(
             chunk_size=settings.chunk_size,
             chunk_overlap=settings.chunk_overlap,
             index_dir=settings.index_dir,
         )
 
-    # ------------------------------------------------------------------
-    # Ingestion
-    # ------------------------------------------------------------------
+
+
+
 
     def ingest(self, force_reindex: bool = False) -> IngestResponse:
         """
@@ -114,45 +114,45 @@ class RAGPipeline:
                 latency_ms=0.0,
             )
 
-        # 1. Parse PDFs
+
         logger.info(f"Loading PDFs from {self.settings.data_dir}")
         chunks = self.ingester.load_directory(self.settings.data_dir)
 
-        # 2. Embed chunks (batched)
+
         logger.info(f"Embedding {len(chunks)} chunks...")
         embeddings = self.embedder.embed_documents(chunks)
 
-        # 3. Add to FAISS index
+
         self.vector_store.add(chunks, embeddings)
 
-        # 4. Persist to disk
+
         self.vector_store.save()
 
-        # 5. (Optional) Persist into ChromaDB + MongoDB for long-term memory
-        # We attempt to upsert embeddings into Chroma and create human-readable
-        # documents in Mongo. Failures here should not abort the ingestion.
+
+
+
         try:
             pdf_store = get_pdf_store()
             doc_store = get_doc_store()
 
             try:
-                # Chroma client expects list[list[float]] embeddings
+
                 emb_list = embeddings.tolist() if hasattr(embeddings, "tolist") else list(embeddings)
                 chroma_ids = pdf_store.add(chunks=chunks, embeddings=emb_list)
                 logger.info(f"ChromaDB: upserted {len(chroma_ids)} chunks")
 
-                # Create a session for this ingestion run so Mongo documents satisfy
-                # the collection's schema (session_id is required). Link chunks
-                # created here to the same session_id.
+
+
+
                 try:
                     session_store = get_session_store()
                     session_id = str(uuid.uuid4())
-                    # register session in Mongo
+
                     session_store.create(session_id, title=f"ingest-{session_id}", tags=["ingest"])
                 except Exception:
                     session_id = ""
 
-                # Persist each chunk as a Mongo document (linking chroma ids)
+
                 for chunk, cid in zip(chunks, chroma_ids):
                     try:
                         doc_store.create_from_pdf_chunk(
@@ -183,9 +183,9 @@ class RAGPipeline:
             latency_ms=elapsed_ms,
         )
 
-    # ------------------------------------------------------------------
-    # Query
-    # ------------------------------------------------------------------
+
+
+
 
     def query(self, request: QueryRequest) -> QueryResponse:
         """
@@ -205,12 +205,12 @@ class RAGPipeline:
         top_k = request.top_k or self.settings.retrieval_top_k
         threshold = request.similarity_threshold or self.settings.similarity_threshold
 
-        # 1. Embed query
+
         t_start = time.perf_counter()
         query_embedding = self.embedder.embed_query(request.question)
         t_embed = time.perf_counter()
 
-        # 2. Retrieve candidates
+
         candidates = self.vector_store.search(
             query_embedding=query_embedding,
             top_k=top_k,
@@ -222,7 +222,7 @@ class RAGPipeline:
         logger.info("Candidate scores: %s",
                     [round(c.score, 4) for c in candidates])
 
-        # 3. MMR re-rank
+
         final_chunks = self.vector_store.mmr_rerank(
             candidates=candidates,
             query_embedding=query_embedding,
@@ -235,7 +235,7 @@ class RAGPipeline:
 
         found = len(final_chunks) > 0
 
-        # 4. Build prompt
+
         prompt = build_prompt(
             question=request.question,
             retrieved_chunks=final_chunks,
@@ -245,21 +245,21 @@ class RAGPipeline:
         logger.info("Prompt build time: %.3fs — prompt length: %d chars",
                     t_prompt - t_mmr, len(prompt))
 
-        # 5. Generate response
+
         if found:
             gen_start = time.perf_counter()
             raw_answer = self.llm.generate(prompt)
             gen_end = time.perf_counter()
             logger.info("LLM generation time: %.3fs", gen_end - gen_start)
         else:
-            # Skip LLM call entirely when no relevant context found.
-            # This is faster and guarantees the correct "not found" response.
+
+
             raw_answer = NOT_FOUND_SENTINEL
 
-        # 6. Detect hallucination sentinel (LLM may produce it even with chunks)
+
         answer_is_found = found and NOT_FOUND_SENTINEL not in raw_answer
 
-        # 7. Assemble response
+
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
         return QueryResponse(

@@ -31,9 +31,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # ------------------------------------------------------------------
-    # Paths
-    # ------------------------------------------------------------------
+
+
+
     data_dir: Path = Field(
         default=Path("data/pdfs"),
         description="Directory that contains the source PDF files.",
@@ -47,9 +47,9 @@ class Settings(BaseSettings):
         description="Directory where local LLM weights are stored.",
     )
 
-    # ------------------------------------------------------------------
-    # Chunking
-    # ------------------------------------------------------------------
+
+
+
     chunk_size: int = Field(
         default=512,
         description=(
@@ -68,9 +68,9 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ------------------------------------------------------------------
-    # Embedding model
-    # ------------------------------------------------------------------
+
+
+
     embedding_model: str = Field(
         default="BAAI/bge-m3",
         description=(
@@ -95,9 +95,9 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ------------------------------------------------------------------
-    # FAISS index
-    # ------------------------------------------------------------------
+
+
+
     faiss_index_type: Literal["flat", "ivf", "hnsw"] = Field(
         default="flat",
         description=(
@@ -108,9 +108,9 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ------------------------------------------------------------------
-    # Retrieval
-    # ------------------------------------------------------------------
+
+
+
     retrieval_top_k: int = Field(
         default=5,
         description="Number of chunks to retrieve per query before re-ranking.",
@@ -139,9 +139,9 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ------------------------------------------------------------------
-    # LLM
-    # ------------------------------------------------------------------
+
+
+
     llm_model_path: str = Field(
         default="models/mistral-7b-instruct-v0.2.Q4_K_M.gguf",
         description=(
@@ -177,9 +177,9 @@ class Settings(BaseSettings):
         description="CPU threads for llama.cpp inference. Match your machine's core count.",
     )
 
-    # ------------------------------------------------------------------
-    # Prompt
-    # ------------------------------------------------------------------
+
+
+
     system_prompt: str = Field(
         default=(
             "Você é um assistente especializado em análise de documentos. "
@@ -192,9 +192,9 @@ class Settings(BaseSettings):
         ),
     )
 
-    # ------------------------------------------------------------------
-    # ChromaDB / MongoDB (persistent memory)
-    # ------------------------------------------------------------------
+
+
+
     use_chroma: bool = Field(default=False, description="Use ChromaDB instead of FAISS vector store")
     chroma_host: str = Field(default="localhost", description="ChromaDB HTTP host")
     chroma_port: int = Field(default=8200, description="ChromaDB HTTP port")
@@ -207,9 +207,9 @@ class Settings(BaseSettings):
     )
     mongo_db: str = Field(default="rag_knowledge", description="MongoDB database name")
 
-    # ------------------------------------------------------------------
-    # Validators
-    # ------------------------------------------------------------------
+
+
+
     @field_validator("similarity_threshold")
     @classmethod
     def validate_threshold(cls, v: float) -> float:
@@ -225,5 +225,5 @@ class Settings(BaseSettings):
         return v
 
 
-# Singleton exported throughout the application
+
 settings = Settings()

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-# ── Node definitions ──────────────────────────────────────────────────────────
+
 _NODES = [
     ("PDF", 60,  110, "#2d8cf0"),
     ("Chunking", 190, 110, "#9b59b6"),
@@ -15,7 +15,7 @@ _NODES = [
 ]
 
 _W, _H = 940, 220
-_R = 36   # node radius
+_R = 36
 
 
 def _build_svg() -> str:
@@ -25,12 +25,12 @@ def _build_svg() -> str:
         f'viewBox="0 0 {_W} {_H}" style="font-family:sans-serif;">'
     ]
 
-    # Background
+
     parts.append(
         f'<rect width="{_W}" height="{_H}" rx="12" fill="#0d1117"/>'
     )
 
-    # Arrows between nodes
+
     for i in range(len(_NODES) - 1):
         _, x1, y, _ = _NODES[i]
         _, x2, _, _ = _NODES[i + 1]
@@ -41,7 +41,7 @@ def _build_svg() -> str:
             f'stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>'
         )
 
-    # Arrow marker
+
     parts.append(
         '<defs>'
         '<marker id="arrow" markerWidth="8" markerHeight="8" '
@@ -51,7 +51,7 @@ def _build_svg() -> str:
         '</defs>'
     )
 
-    # Nodes
+
     for label, cx, cy, color in _NODES:
         lines = label.split("\n")
         parts.append(
@@ -66,7 +66,7 @@ def _build_svg() -> str:
                 f'fill="#e2e8f0" font-size="11" font-weight="600">{line}</text>'
             )
 
-    # Step labels below
+
     step_labels = ["1. Ingestão", "2. Chunk", "3. Embed", "4. Busca", "5. MMR", "6. Gera", "7. Resp."]
     for (_, cx, cy, _), lbl in zip(_NODES, step_labels):
         parts.append(

@@ -31,9 +31,9 @@ def _pipeline(request: Request):
     return request.app.state.pipeline
 
 
-# ---------------------------------------------------------------------------
-# Ingestion
-# ---------------------------------------------------------------------------
+
+
+
 
 @router.post(
     "/ingest",
@@ -59,9 +59,9 @@ async def ingest(body: IngestRequest, request: Request) -> IngestResponse:
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ---------------------------------------------------------------------------
-# Query
-# ---------------------------------------------------------------------------
+
+
+
 
 @router.post(
     "/query",
@@ -114,8 +114,8 @@ async def query_stream(body: QueryRequest, request: Request):
     pipeline = _pipeline(request)
 
     try:
-        # Run the deterministic parts first so streaming starts at generation
-        # time: embed, retrieve, mmr, prompt build.
+
+
         top_k = body.top_k or pipeline.settings.retrieval_top_k
         threshold = body.similarity_threshold or pipeline.settings.similarity_threshold
 
@@ -133,7 +133,7 @@ async def query_stream(body: QueryRequest, request: Request):
         )
 
         prompt = pipeline.llm.build_prompt if hasattr(pipeline.llm, "build_prompt") else None
-        # We already have the pipeline.build_prompt function available elsewhere
+
         from app.core.llm import build_prompt
 
         full_prompt = build_prompt(
@@ -142,9 +142,9 @@ async def query_stream(body: QueryRequest, request: Request):
             system_prompt=pipeline.settings.system_prompt,
         )
 
-        # Generator that yields SSE text events
+
         def event_stream():
-            # Send an initial JSON payload with metadata and retrieved chunks
+
             meta = {
                 "type": "meta",
                 "retrieved_chunks": [
@@ -162,18 +162,18 @@ async def query_stream(body: QueryRequest, request: Request):
             }
             yield f"data: {json.dumps(meta, ensure_ascii=False)}\n\n"
 
-            # Stream LLM tokens
+
             if final_chunks:
                 for token in pipeline.llm.stream_generate(full_prompt):
-                    # Each token is a text chunk; emit as SSE
+
                     payload = {"type": "token", "text": token}
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             else:
-                # No relevant chunks; send not-found sentinel
+
                 payload = {"type": "complete", "text": "Não encontrei essa informação nos documentos fornecidos."}
                 yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
-            # Final message indicating completion
+
             yield f"data: {json.dumps({'type':'done'})}\n\n"
 
         return StreamingResponse(event_stream(), media_type="text/event-stream")
@@ -183,9 +183,9 @@ async def query_stream(body: QueryRequest, request: Request):
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-# ---------------------------------------------------------------------------
-# Index stats
-# ---------------------------------------------------------------------------
+
+
+
 
 @router.get(
     "/stats",

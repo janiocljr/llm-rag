@@ -7,7 +7,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-# Make sure sibling packages are importable when running directly
+
 sys.path.insert(0, str(Path(__file__).parent))
 
 import streamlit as st
@@ -21,7 +21,7 @@ from utils.api_client import APIClient
 from utils.demo_data import DEMO_QUERY_RESPONSE, DEMO_STATS
 from utils.formatting import format_latency
 
-# ── Page config ───────────────────────────────────────────────────────────────
+
 st.set_page_config(
     page_title="RAG Chat",
     page_icon="🤖",
@@ -29,20 +29,20 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ── Load CSS ──────────────────────────────────────────────────────────────────
+
 _CSS = (Path(__file__).parent / "assets" / "styles.css").read_text(encoding="utf-8")
 st.markdown(f"<style>{_CSS}</style>", unsafe_allow_html=True)
 
-# ── Session state defaults ────────────────────────────────────────────────────
+
 if "messages" not in st.session_state:
-    st.session_state.messages = []          # list[dict]  {role, content, meta}
+    st.session_state.messages = []
 if "last_response" not in st.session_state:
-    st.session_state.last_response = None   # last QueryResponse dict
+    st.session_state.last_response = None
 if "demo_mode" not in st.session_state:
     st.session_state.demo_mode = False
 
 
-# ── Sidebar ───────────────────────────────────────────────────────────────────
+
 sidebar_state = render_sidebar()
 
 client = APIClient(base_url=sidebar_state.api_url)
@@ -84,7 +84,7 @@ with col_main:
                 })
                 st.rerun()
 
-            # Streaming path: iterate events and update UI incrementally
+
             placeholder = st.empty()
             assistant_meta = {"latency_ms": 0, "found_in_documents": True, "chunks": []}
             content_buf = ""
@@ -96,7 +96,7 @@ with col_main:
             ):
                 if event.get("type") == "meta":
                     assistant_meta["chunks"] = event.get("retrieved_chunks", [])
-                    # show initial empty assistant bubble
+
                     placeholder.markdown(
                         f'<div class="bubble-ai">{content_buf}</div>', unsafe_allow_html=True
                     )
@@ -106,7 +106,7 @@ with col_main:
                         f'<div class="bubble-ai">{content_buf}</div>', unsafe_allow_html=True
                     )
                 elif event.get("type") in ("complete", "done"):
-                    # finalize on either explicit complete (not-found) or done
+
                     content_buf += event.get("text", "")
                     st.session_state.last_response = {
                         "answer": content_buf,

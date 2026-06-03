@@ -1,21 +1,4 @@
-#!/usr/bin/env python3
-"""
-start.py
-========
-Launcher para o RAG System (Linux / macOS).
 
-1. Cria .venv na raiz do repositório (usa python3.12 ou python3).
-2. Instala backend/requirements.txt e frontend/requirements.txt.
-3. Delega o controle de processos ao backend/start.sh.
-
-Uso:
-    python3 start.py                   # inicia backend + frontend
-    python3 start.py --port-api 8001   # porta customizada para a API
-    python3 start.py --port-ui  8502   # porta customizada para o UI
-    python3 start.py --no-ingest       # pula auto-ingest na inicialização
-    python3 start.py --reload          # habilita hot-reload no uvicorn
-    python3 start.py --help            # exibe esta mensagem
-"""
 
 from __future__ import annotations
 
@@ -72,13 +55,8 @@ def setup_env() -> None:
     sep()
     print(f"{BOLD}{BLUE}  RAG System — Configuração do Ambiente{RESET}")
     sep()
-    # If a Conda environment is active, prefer it and install using the
-    # active Python (avoids building C extensions from source on macOS).
     conda_prefix = os.environ.get("CONDA_PREFIX")
 
-    # If no Conda is active, try to install/configure Miniforge and
-    # relançar este script dentro do env 'rag' usando `conda run`.
-    # Use `--no-conda-setup` para pular este comportamento.
     if not conda_prefix and "--no-conda-setup" not in sys.argv:
         condacmd = shutil.which("conda")
         miniforge_conda = str(Path.home() / "miniforge3" / "bin" / "conda")
@@ -96,7 +74,6 @@ def setup_env() -> None:
             else:
                 warn(f"Script não encontrado: {setup_script}.")
 
-        # re-check for conda after running the setup script
         if not condacmd and Path(miniforge_conda).exists():
             condacmd = miniforge_conda
         if not condacmd:
@@ -121,7 +98,6 @@ def setup_env() -> None:
             ok(f"Dependências do {label} instaladas no Conda.")
         return
 
-    # ── Criar venv ─────────────────────────────────────────────────────────
     if VENV_PYTHON.exists():
         ok(f"Venv já existe: {VENV}")
     else:
@@ -130,7 +106,6 @@ def setup_env() -> None:
         subprocess.run([base_py, "-m", "venv", str(VENV)], check=True)
         ok(f"Venv criado em {VENV}")
 
-    # ── Instalar requirements ──────────────────────────────────────────────
     for label, req in [
         ("backend",  ROOT / "backend"  / "requirements.txt"),
         ("frontend", ROOT / "frontend" / "requirements.txt"),
@@ -162,13 +137,11 @@ def main() -> None:
         err(f"Script não encontrado: {script}")
         sys.exit(1)
 
-    # Repassa todos os argumentos originais para o start.sh
     extra_args = sys.argv[1:]
 
     sep()
     log(f"Delegando para backend/start.sh …")
 
-    # Substitui o processo Python pelo bash — sem overhead extra
     os.execvp("bash", ["bash", str(script)] + extra_args)
 
 

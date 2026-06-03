@@ -25,11 +25,11 @@ class VectorStore:
         self.index_dir = Path(index_dir)
         self.index_dir.mkdir(parents=True, exist_ok=True)
 
-        # Parallel lists: index position i → chunks[i]
+
         self._chunks: list[DocumentChunk] = []
         self._index: Optional[faiss.IndexFlatIP] = None
 
-        # Try to load an existing index
+
         if self._persisted():
             self._load()
         else:
@@ -75,7 +75,7 @@ class VectorStore:
             logger.warning("Search called on empty index")
             return []
 
-        # Ensure query is 2-D (1, dim) for FAISS
+
         q = query_embedding.reshape(1, -1).astype(np.float32)
 
         k = min(top_k, self.size)
@@ -84,9 +84,9 @@ class VectorStore:
         results: list[RetrievedChunk] = []
         for score, idx in zip(scores[0], indices[0]):
             if idx == -1:
-                continue  # FAISS returns -1 for empty slots
+                continue
             if float(score) < threshold:
-                continue  # below similarity threshold — discard
+                continue
             results.append(
                 RetrievedChunk(
                     chunk=self._chunks[idx],
@@ -126,10 +126,10 @@ class VectorStore:
         if len(candidates) <= final_k:
             return candidates
 
-        # Gather embeddings for all candidates (re-embed from index)
-        # We store embeddings separately for MMR to avoid a second FAISS search
+
+
         candidate_embeddings = self._get_embeddings_for_chunks(candidates)
-        q = query_embedding.reshape(-1)  # (dim,)
+        q = query_embedding.reshape(-1)
 
         selected_indices: list[int] = []
         remaining = list(range(len(candidates)))
@@ -144,7 +144,7 @@ class VectorStore:
                 if not selected_indices:
                     redundancy = 0.0
                 else:
-                    # Max similarity to any already-selected chunk
+
                     redundancy = max(
                         float(np.dot(candidate_embeddings[i], candidate_embeddings[j]))
                         for j in selected_indices
@@ -181,7 +181,7 @@ class VectorStore:
 
         faiss.write_index(self._index, str(index_path))
 
-        # Serialise chunk list as JSON for human-readability / debuggability
+
         meta = [chunk.model_dump() for chunk in self._chunks]
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=2))
 

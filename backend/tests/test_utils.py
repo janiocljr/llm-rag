@@ -20,7 +20,7 @@ class TestCleanText:
         assert clean_text("  hello  ") == "hello"
 
     def test_normalizes_unicode(self):
-        # NFKC: ﬁ (ligature) → fi
+
         assert clean_text("\ufb01le") == "file"
 
     def test_empty_string(self):

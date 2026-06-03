@@ -5,10 +5,10 @@ import numpy as np
 import pytest
 
 try:
-    # older tests expect a `Chunk` class exported from ingestion
-    from app.core.ingestion import Chunk  # type: ignore
+
+    from app.core.ingestion import Chunk  #type: ignore
 except Exception:
-    from app.models.schemas import DocumentChunk as Chunk  # type: ignore
+    from app.models.schemas import DocumentChunk as Chunk  #type: ignore
 from app.core.config import settings as app_settings
 
 
@@ -49,6 +49,6 @@ def sample_vectors(sample_chunks) -> np.ndarray:
     rng = np.random.default_rng(42)
     dim = 384
     vecs = rng.random((len(sample_chunks), dim)).astype(np.float32)
-    # L2-normalize
+
     norms = np.linalg.norm(vecs, axis=1, keepdims=True)
     return vecs / norms

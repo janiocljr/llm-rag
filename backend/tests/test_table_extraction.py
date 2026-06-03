@@ -36,14 +36,14 @@ def test_camelot_preferred_and_csv_saved(monkeypatch, tmp_path):
     """When Camelot finds tables, they are saved as CSV and table chunks contain metadata."""
     from app.core.ingestion import PDFIngester, _HAS_CAMELOT
 
-    # Ensure camelot path is considered
+
     monkeypatch.setattr('app.core.ingestion._HAS_CAMELOT', True)
 
-    # Mock pdfplumber.open to return a fake PDF with one page
+
     fake_pdf = FakePDF([FakePage(text="Some text", tables=[])])
     monkeypatch.setattr('pdfplumber.open', lambda p: fake_pdf)
 
-    # Mock camelot.read_pdf to return an object with .n and iterable tables
+
     class FakeTable:
         def __init__(self, df):
             self.df = df
@@ -64,7 +64,7 @@ def test_camelot_preferred_and_csv_saved(monkeypatch, tmp_path):
 
     monkeypatch.setattr('camelot.read_pdf', fake_read_pdf)
 
-    # Create a fake pdf path under backend/data/pdfs
+
     pdf_dir = tmp_path / "backend" / "data" / "pdfs"
     csv_index_dir = tmp_path / "backend" / "data" / "index" / "tables"
     csv_index_dir.mkdir(parents=True, exist_ok=True)
@@ -72,21 +72,21 @@ def test_camelot_preferred_and_csv_saved(monkeypatch, tmp_path):
     pdf_path = pdf_dir / "test_tables.pdf"
     pdf_path.write_bytes(b"%%PDF-1.4\n%fakepdf")
 
-    # Run ingester with monkeypatched cwd to tmp_path/backend
+
     index_dir = tmp_path / "backend" / "data" / "index"
     index_dir.mkdir(parents=True, exist_ok=True)
 
     ing = PDFIngester(index_dir=index_dir)
     chunks = list(ing.load_pdf(pdf_path))
 
-    # Expect at least one chunk that is marked as table and references a relative CSV path
+
     table_chunks = [c for c in chunks if getattr(c, 'is_table', False)]
     assert table_chunks, "No table chunk produced"
     for tc in table_chunks:
         assert tc.table_csv_path is not None
-        # Path must be relative (no leading /)
+
         assert not Path(tc.table_csv_path).is_absolute(), f"Expected relative path, got: {tc.table_csv_path}"
-        # The actual CSV should exist when resolved against index_dir
+
         assert (index_dir / tc.table_csv_path).exists(), f"CSV not found: {index_dir / tc.table_csv_path}"
 
 
@@ -94,15 +94,15 @@ def test_pdfplumber_fallback_when_camelot_fails(monkeypatch, tmp_path):
     """If Camelot finds nothing or raises, pdfplumber.extract_tables is used."""
     from app.core.ingestion import PDFIngester
 
-    # Force camelot to be present but return empty
+
     monkeypatch.setattr('app.core.ingestion._HAS_CAMELOT', True)
 
-    # Mock pdfplumber.open to return a fake PDF with one page and one table
+
     sample_table = [["a", "b"], ["c", "d"]]
     fake_pdf = FakePDF([FakePage(text="Page text", tables=[sample_table])])
     monkeypatch.setattr('pdfplumber.open', lambda p: fake_pdf)
 
-    # Mock camelot.read_pdf to raise an exception
+
     def fake_read_pdf_raise(path, pages, flavor):
         raise RuntimeError("camelot failure simulated")
 
@@ -116,6 +116,6 @@ def test_pdfplumber_fallback_when_camelot_fails(monkeypatch, tmp_path):
     ing = PDFIngester(index_dir=tmp_path / "backend" / "data" / "index")
     chunks = list(ing.load_pdf(pdf_path))
 
-    # Expect chunks containing the pdfplumber label in the text
+
     found = any("pdfplumber" in c.text for c in chunks)
     assert found, "pdfplumber fallback text not found in any chunk"
