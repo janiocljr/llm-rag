@@ -51,9 +51,6 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Singleton stores
-# ---------------------------------------------------------------------------
 _pdf_store:      Optional[ChromaPDFStore]      = None
 _memory_store:   Optional[ChromaMemoryStore]   = None
 _doc_store:      Optional[MongoDocumentStore]  = None
@@ -96,9 +93,6 @@ def get_task_store() -> MongoTaskStore:
     return _task_store
 
 
-# ---------------------------------------------------------------------------
-# Memory Orchestrator
-# ---------------------------------------------------------------------------
 
 class MemoryOrchestrator:
     """
@@ -132,7 +126,6 @@ class MemoryOrchestrator:
         self._session_store= get_session_store()
         self._task_store   = get_task_store()
 
-    # ── Sessions ───────────────────────────────────────────────────────────
 
     def new_session(self, title: str = "", tags: Optional[list[str]] = None) -> str:
         """Start a new chat session.  Returns the session_id (UUID string)."""
@@ -152,7 +145,6 @@ class MemoryOrchestrator:
         self._session_store.close(session_id, summary=summary)
         logger.info(f"Session closed: {session_id}")
 
-    # ── Context reconstruction ─────────────────────────────────────────────
 
     def reconstruct_context(
         self,
@@ -172,7 +164,6 @@ class MemoryOrchestrator:
         """
         q_embedding = self._embed_text(question)
 
-        # Search ChromaDB chat_memory — optionally exclude current session
         memories = self._memory_store.recall(
             query_embedding=q_embedding,
             top_k=top_k * 2,  # over-fetch then filter
@@ -182,10 +173,8 @@ class MemoryOrchestrator:
         if exclude_current_session:
             memories = [m for m in memories if m.get("session_id") != session_id]
 
-        # Return top_k after filtering
         return memories[:top_k]
 
-    # ── Turn saving ────────────────────────────────────────────────────────
 
     def save_turn(
         self,
@@ -209,7 +198,6 @@ class MemoryOrchestrator:
         q_embedding = self._embed_text(question)
         a_embedding = self._embed_text(answer)
 
-        # 1 & 2: ChromaDB memory
         q_chroma_id = self._memory_store.save(
             text=question,
             embedding=q_embedding,
@@ -225,11 +213,9 @@ class MemoryOrchestrator:
             tags=tags or [],
         )
 
-        # 3: Session turns in MongoDB
         self._session_store.add_turn(session_id, "user", question, chroma_id=q_chroma_id)
         self._session_store.add_turn(session_id, "assistant", answer, chroma_id=a_chroma_id)
 
-        # 4: Conversation document
         content = f"## Pergunta\n\n{question}\n\n## Resposta\n\n{answer}"
         mongo_id = self._doc_store.create(
             title=question[:100],
@@ -240,12 +226,8 @@ class MemoryOrchestrator:
             chroma_ids=[q_chroma_id, a_chroma_id],
         )
 
-        # 5: Link back to session
         self._session_store.link_doc(session_id, mongo_id)
 
-        # 6: Update ChromaDB metadata with mongo_id
-        # (done on next save — ChromaDB doesn't support metadata-only updates,
-        #  but mongo_id is recoverable via session.doc_ids)
 
         return {
             "session_id":   session_id,
@@ -254,7 +236,6 @@ class MemoryOrchestrator:
             "a_chroma_id":  a_chroma_id,
         }
 
-    # ── Knowledge documents ────────────────────────────────────────────────
 
     def save_note(
         self,
@@ -338,7 +319,6 @@ class MemoryOrchestrator:
             session_id=session_id,
             chroma_id=chroma_id,
         )
-        # Also create a document for text search / cross-referencing
         mongo_id = self._doc_store.create(
             title=f"[TASK] {title}",
             content=content,
@@ -350,7 +330,6 @@ class MemoryOrchestrator:
         )
         return {"task_id": task_id, "mongo_id": mongo_id, "chroma_id": chroma_id}
 
-    # ── Stats ──────────────────────────────────────────────────────────────
 
     def memory_stats(self) -> dict:
         return {
@@ -361,10 +340,8 @@ class MemoryOrchestrator:
             "mongodb": self._doc_store.stats(),
         }
 
-    # ── Internal ───────────────────────────────────────────────────────────
 
     def _embed_text(self, text: str) -> list[float]:
         """Embed a single string using the pipeline embedder."""
-        # Embedder.embed_query returns a numpy array; ChromaDB needs a list
         vec = self._embedder.embed_query(text)
         return vec.tolist() if hasattr(vec, "tolist") else list(vec)

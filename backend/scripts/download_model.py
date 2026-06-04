@@ -23,9 +23,6 @@ import sys
 import urllib.request
 from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
 
 MODEL_DIR = Path("models")
 
@@ -62,9 +59,6 @@ MODELS = {
 DEFAULT_MODEL = "mistral-7b"
 
 
-# ---------------------------------------------------------------------------
-# Download with progress
-# ---------------------------------------------------------------------------
 
 def _progress_hook(block_num: int, block_size: int, total_size: int) -> None:
     downloaded = block_num * block_size
@@ -106,9 +100,6 @@ def download_model(model_key: str = DEFAULT_MODEL) -> Path:
     return dest
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     import argparse

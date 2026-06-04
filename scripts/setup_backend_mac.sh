@@ -12,7 +12,6 @@ echo "Ensuring Ghostscript is installed (brew)..."
 brew install ghostscript || true
 
 ensure_miniforge() {
-  # Ensure Miniforge is installed at $HOME/miniforge3 (non-interactive)
   if [ -x "$HOME/miniforge3/bin/conda" ]; then
     export PATH="$HOME/miniforge3/bin:$PATH"
     return 0
@@ -28,7 +27,6 @@ ensure_miniforge() {
 if command -v conda >/dev/null 2>&1 || command -v mamba >/dev/null 2>&1; then
   CONDA_CMD=$(command -v mamba 2>/dev/null || command -v conda)
 else
-  # Try to install Miniforge and prefer its conda
   ensure_miniforge
   CONDA_CMD=$(command -v mamba 2>/dev/null || command -v conda || true)
 fi

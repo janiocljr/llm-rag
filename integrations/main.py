@@ -30,14 +30,12 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # ── Startup ────────────────────────────────────────────────────────────
     logger.info("Starting RAG system v3 (ChromaDB + MongoDB)")
 
     pipeline = RAGPipeline(settings)
     app.state.pipeline = pipeline
     app.state.memory   = pipeline.memory
 
-    # Auto-ingest if no vectors exist yet
     if pipeline.vector_store.size == 0:
         logger.info("Vector store empty — running auto-ingest…")
         try:
@@ -55,7 +53,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # ── Shutdown ───────────────────────────────────────────────────────────
     logger.info("RAG system shutting down")
 
 
@@ -79,10 +76,8 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Core RAG routes: /api/v1/ingest, /query, /stats
     app.include_router(rag_router, prefix="/api/v1")
 
-    # Memory routes: /api/v1/memory/sessions, /notes, /tasks, /recall, …
     app.include_router(memory_router, prefix="/api/v1")
 
     @app.get("/health", tags=["system"])

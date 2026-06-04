@@ -44,9 +44,6 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Singleton client
-# ---------------------------------------------------------------------------
 _client: Optional[MongoClient] = None
 
 
@@ -58,7 +55,6 @@ def _get_client() -> MongoClient:
             serverSelectionTimeoutMS=5000,
             connectTimeoutMS=5000,
         )
-        # Ping to validate connection
         _client.admin.command("ping")
         logger.info(f"MongoDB connected → {settings.mongo_uri.split('@')[-1]}")
     return _client
@@ -72,9 +68,6 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-# ---------------------------------------------------------------------------
-# Low-level helpers
-# ---------------------------------------------------------------------------
 
 def _serialize(doc: dict) -> dict:
     """Convert ObjectId to str for JSON serialisation."""
@@ -83,9 +76,6 @@ def _serialize(doc: dict) -> dict:
     return doc
 
 
-# ---------------------------------------------------------------------------
-# Document store (notes, knowledge, PDF chunks, conversations)
-# ---------------------------------------------------------------------------
 
 class MongoDocumentStore:
     """
@@ -99,7 +89,6 @@ class MongoDocumentStore:
     def col(self) -> Collection:
         return _db()["documents"]
 
-    # ── Create ─────────────────────────────────────────────────────────────
 
     def create(
         self,
@@ -157,7 +146,6 @@ class MongoDocumentStore:
             metadata={"chunk_id": chunk_id},
         )
 
-    # ── Read ───────────────────────────────────────────────────────────────
 
     def get_by_id(self, mongo_id: str) -> Optional[dict]:
         doc = self.col.find_one({"_id": ObjectId(mongo_id)})
@@ -216,7 +204,6 @@ class MongoDocumentStore:
         )
         return [_serialize(d) for d in cursor]
 
-    # ── Update ─────────────────────────────────────────────────────────────
 
     def update(self, mongo_id: str, **fields) -> bool:
         """Partial update — only the provided fields are changed."""
@@ -241,13 +228,11 @@ class MongoDocumentStore:
     def archive(self, mongo_id: str) -> bool:
         return self.update(mongo_id, status="archived")
 
-    # ── Delete ─────────────────────────────────────────────────────────────
 
     def delete(self, mongo_id: str) -> bool:
         result = self.col.delete_one({"_id": ObjectId(mongo_id)})
         return result.deleted_count > 0
 
-    # ── Stats ──────────────────────────────────────────────────────────────
 
     def stats(self) -> dict:
         pipeline = [
@@ -261,9 +246,6 @@ class MongoDocumentStore:
         }
 
 
-# ---------------------------------------------------------------------------
-# Session store
-# ---------------------------------------------------------------------------
 
 class MongoSessionStore:
     """
@@ -349,9 +331,6 @@ class MongoSessionStore:
         return result.modified_count > 0
 
 
-# ---------------------------------------------------------------------------
-# Task store
-# ---------------------------------------------------------------------------
 
 class MongoTaskStore:
     """

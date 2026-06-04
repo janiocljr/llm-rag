@@ -37,7 +37,6 @@ from app.models.schemas import (
 
 logger = logging.getLogger(__name__)
 
-# Statistical query detector — triggers table-chunk inclusion
 _STAT_QUERY_PATTERN = re.compile(
     r"\b(percentual|percentagem|porcento|quanto|quantos|quantas|"
     r"valor|valores|total|soma|média|taxa|índice|indicador|"
@@ -83,7 +82,6 @@ class RAGPipeline:
             batch_size=settings.embedding_batch_size,
         )
 
-        # ── Vector store: ChromaDB (preferred) or FAISS (fallback) ────────
         if settings.use_chroma:
             self.vector_store = get_pdf_store()
             logger.info("Vector store: ChromaDB")
@@ -96,10 +94,8 @@ class RAGPipeline:
             )
             logger.info("Vector store: FAISS (local)")
 
-        # ── Memory orchestrator ────────────────────────────────────────────
         self.memory = MemoryOrchestrator(embedder=self.embedder)
 
-        # ── LLM ───────────────────────────────────────────────────────────
         self.llm = LocalLLM(
             model_path=settings.llm_model_path,
             context_length=settings.llm_context_length,
@@ -114,9 +110,6 @@ class RAGPipeline:
             chunk_overlap=settings.chunk_overlap,
         )
 
-    # ------------------------------------------------------------------
-    # Ingestion
-    # ------------------------------------------------------------------
 
     def ingest(self, force_reindex: bool = False) -> IngestResponse:
         t0 = time.perf_counter()
@@ -153,13 +146,10 @@ class RAGPipeline:
         logger.info(f"Embedding {len(chunks)} chunks…")
         embeddings = self.embedder.embed_documents(chunks)
 
-        # Add to vector store
         if self.settings.use_chroma:
-            # ChromaDB expects list[list[float]]
             emb_list = embeddings.tolist()
             chroma_ids = self.vector_store.add(chunks, emb_list)
 
-            # Mirror PDF chunks to MongoDB for full-text search
             doc_store = self.memory._doc_store
             for chunk, cid in zip(chunks, chroma_ids):
                 doc_store.create_from_pdf_chunk(
@@ -186,9 +176,6 @@ class RAGPipeline:
             latency_ms=elapsed_ms,
         )
 
-    # ------------------------------------------------------------------
-    # Query
-    # ------------------------------------------------------------------
 
     def query(self, request: QueryRequest) -> QueryResponse:
         """
@@ -210,13 +197,11 @@ class RAGPipeline:
         top_k      = request.top_k or self.settings.retrieval_top_k
         threshold  = request.similarity_threshold or self.settings.similarity_threshold
 
-        # ── 1. Embed query ──────────────────────────────────────────────
         t_embed = time.perf_counter()
         q_emb_np = self.embedder.embed_query(cleaned_q)
         q_emb    = q_emb_np.tolist() if hasattr(q_emb_np, "tolist") else list(q_emb_np)
         logger.debug(f"Embed: {(time.perf_counter()-t_embed)*1000:.1f}ms")
 
-        # ── 2. Past memory recall ───────────────────────────────────────
         past_memories: list[dict] = []
         if session_id:
             past_memories = self.memory.reconstruct_context(
@@ -227,7 +212,6 @@ class RAGPipeline:
             )
             logger.debug(f"Recalled {len(past_memories)} past memories")
 
-        # ── 3. PDF chunk retrieval ──────────────────────────────────────
         if self.settings.auto_chunk_type_routing:
             allowed_types = None if _is_statistical_query(request.question) else ["text"]
         else:
@@ -242,7 +226,6 @@ class RAGPipeline:
                 allowed_types=allowed_types,
             )
         else:
-            # FAISS path (hybrid or dense)
             if self.settings.use_bm25_hybrid and self.vector_store.use_bm25:
                 candidates = self.vector_store.hybrid_search(
                     query=cleaned_q,
@@ -263,9 +246,7 @@ class RAGPipeline:
             f"Retrieval: {len(candidates)} candidates in {(time.perf_counter()-t_ret)*1000:.1f}ms"
         )
 
-        # ── 4. MMR re-rank ──────────────────────────────────────────────
         if self.settings.use_chroma:
-            # ChromaDB already returns ranked results; simple top-k slice
             final_chunks = candidates[: self.settings.retrieval_final_k]
         else:
             final_chunks = self.vector_store.mmr_rerank(
@@ -277,7 +258,6 @@ class RAGPipeline:
 
         found = len(final_chunks) > 0
 
-        # ── 5. Build prompt with memory context ─────────────────────────
         memory_context = _format_memory_context(past_memories)
         prompt = build_prompt(
             question=request.question,
@@ -286,7 +266,6 @@ class RAGPipeline:
             extra_context=memory_context,
         )
 
-        # ── 6. Generate ─────────────────────────────────────────────────
         t_llm = time.perf_counter()
         if found:
             raw_answer = self.llm.generate(prompt)
@@ -297,7 +276,6 @@ class RAGPipeline:
         answer_is_found = found and NOT_FOUND_SENTINEL not in raw_answer
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        # ── 7. Persist to memory ────────────────────────────────────────
         if session_id and answer_is_found:
             try:
                 self.memory.save_turn(
@@ -329,9 +307,6 @@ class RAGPipeline:
             latency_ms=elapsed_ms,
         )
 
-    # ------------------------------------------------------------------
-    # Stats
-    # ------------------------------------------------------------------
 
     def get_stats(self) -> IndexStatsResponse:
         index_type = (
@@ -348,9 +323,6 @@ class RAGPipeline:
         )
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _format_memory_context(memories: list[dict]) -> str:
     """

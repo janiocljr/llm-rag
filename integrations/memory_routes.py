@@ -38,9 +38,6 @@ def _mem(request: Request):
     return request.app.state.memory
 
 
-# ---------------------------------------------------------------------------
-# Pydantic request/response models
-# ---------------------------------------------------------------------------
 
 class NewSessionRequest(BaseModel):
     title: str = ""
@@ -85,9 +82,6 @@ class RecallRequest(BaseModel):
     threshold:  float = 0.50
 
 
-# ---------------------------------------------------------------------------
-# Session routes
-# ---------------------------------------------------------------------------
 
 @router.post("/sessions", response_model=NewSessionResponse, summary="Start a new chat session")
 async def new_session(body: NewSessionRequest, request: Request):
@@ -120,9 +114,6 @@ async def close_session(session_id: str, body: CloseSessionRequest, request: Req
     return {"ok": True, "session_id": session_id}
 
 
-# ---------------------------------------------------------------------------
-# Document / knowledge routes
-# ---------------------------------------------------------------------------
 
 @router.post("/notes", summary="Save a markdown note to the knowledge base")
 async def save_note(body: SaveNoteRequest, request: Request):
@@ -162,9 +153,6 @@ async def save_task(body: SaveTaskRequest, request: Request):
     return {"ok": True, **result}
 
 
-# ---------------------------------------------------------------------------
-# Document listing / search
-# ---------------------------------------------------------------------------
 
 @router.get("/documents", summary="List or search knowledge base documents")
 async def list_documents(
@@ -198,9 +186,6 @@ async def get_document(mongo_id: str, request: Request):
     return doc
 
 
-# ---------------------------------------------------------------------------
-# Context recall
-# ---------------------------------------------------------------------------
 
 @router.post("/recall", summary="Recall semantically relevant past memories for a query")
 async def recall_context(body: RecallRequest, request: Request):
@@ -218,9 +203,6 @@ async def recall_context(body: RecallRequest, request: Request):
     return {"memories": memories, "total": len(memories)}
 
 
-# ---------------------------------------------------------------------------
-# Stats
-# ---------------------------------------------------------------------------
 
 @router.get("/stats", summary="Memory system stats (ChromaDB + MongoDB)")
 async def memory_stats(request: Request):

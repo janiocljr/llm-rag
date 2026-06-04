@@ -44,9 +44,6 @@ from app.models.schemas import DocumentChunk, RetrievedChunk
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Singleton client + collections
-# ---------------------------------------------------------------------------
 _client:     Optional[chromadb.HttpClient] = None
 _pdf_col:    Optional[chromadb.Collection] = None
 _memory_col: Optional[chromadb.Collection] = None
@@ -92,9 +89,6 @@ def get_memory_collection() -> chromadb.Collection:
     return _memory_col
 
 
-# ---------------------------------------------------------------------------
-# PDF embeddings — ingest side
-# ---------------------------------------------------------------------------
 
 class ChromaPDFStore:
     """
@@ -107,7 +101,6 @@ class ChromaPDFStore:
     def __init__(self) -> None:
         self._col = get_pdf_collection()
 
-    # ── Write ──────────────────────────────────────────────────────────────
 
     def add(self, chunks: list[DocumentChunk], embeddings: list[list[float]]) -> list[str]:
         """
@@ -133,7 +126,6 @@ class ChromaPDFStore:
             for c in chunks
         ]
 
-        # ChromaDB upsert is idempotent — safe to call on re-ingest
         self._col.upsert(
             ids=ids,
             embeddings=embeddings,
@@ -154,7 +146,6 @@ class ChromaPDFStore:
         )
         logger.info("ChromaDB pdf_embeddings collection cleared")
 
-    # ── Read ───────────────────────────────────────────────────────────────
 
     def search(
         self,
@@ -226,9 +217,6 @@ class ChromaPDFStore:
         return sorted(files)
 
 
-# ---------------------------------------------------------------------------
-# Chat memory — session recall side
-# ---------------------------------------------------------------------------
 
 class ChromaMemoryStore:
     """
@@ -247,7 +235,6 @@ class ChromaMemoryStore:
     def __init__(self) -> None:
         self._col = get_memory_collection()
 
-    # ── Write ──────────────────────────────────────────────────────────────
 
     def save(
         self,
@@ -307,7 +294,6 @@ class ChromaMemoryStore:
         logger.info(f"Memory batch saved: {len(memories)} units")
         return ids
 
-    # ── Read ───────────────────────────────────────────────────────────────
 
     def recall(
         self,
@@ -326,7 +312,6 @@ class ChromaMemoryStore:
         if self._col.count() == 0:
             return []
 
-        # Build optional where filter
         where_clauses: list[dict] = []
         if session_id:
             where_clauses.append({"session_id": {"$eq": session_id}})
