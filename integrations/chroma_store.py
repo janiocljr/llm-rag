@@ -89,7 +89,6 @@ def get_memory_collection() -> chromadb.Collection:
     return _memory_col
 
 
-
 class ChromaPDFStore:
     """
     Manages the pdf_embeddings collection.
@@ -181,10 +180,10 @@ class ChromaPDFStore:
         ids        = results["ids"][0]
         documents  = results["documents"][0]
         metadatas  = results["metadatas"][0]
-        distances  = results["distances"][0]   # cosine distance: 0 = identical
+        distances  = results["distances"][0]
 
         for cid, doc, meta, dist in zip(ids, documents, metadatas, distances):
-            similarity = 1.0 - dist          # convert distance → similarity
+            similarity = 1.0 - dist
             if similarity < threshold:
                 continue
             chunk = DocumentChunk(
@@ -217,7 +216,6 @@ class ChromaPDFStore:
         return sorted(files)
 
 
-
 class ChromaMemoryStore:
     """
     Manages the chat_memory collection.
@@ -240,7 +238,7 @@ class ChromaMemoryStore:
         self,
         text: str,
         embedding: list[float],
-        memory_type: str,       # "question" | "answer" | "note" | "task" | "summary"
+        memory_type: str,
         session_id: str,
         mongo_id: str = "",
         tags: Optional[list[str]] = None,
@@ -267,7 +265,7 @@ class ChromaMemoryStore:
 
     def save_batch(
         self,
-        memories: list[dict],  # each: {text, embedding, memory_type, session_id, ...}
+        memories: list[dict],
     ) -> list[str]:
         """Batch insert for saving multiple memories at once."""
         if not memories:

@@ -127,7 +127,6 @@ class VectorStore:
             return candidates
 
 
-
         candidate_embeddings = self._get_embeddings_for_chunks(candidates)
         q = query_embedding.reshape(-1)
 

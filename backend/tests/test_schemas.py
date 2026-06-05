@@ -192,7 +192,7 @@ class TestQueryRequest:
     def test_query_request_question_validation_min_length(self) -> None:
         """Test question minimum length validation."""
         with pytest.raises(ValueError):
-            QueryRequest(question="ab")  # Too short
+            QueryRequest(question="ab")
 
     def test_query_request_question_validation_max_length(self) -> None:
         """Test question maximum length validation."""

@@ -323,7 +323,6 @@ class RAGPipeline:
         )
 
 
-
 def _format_memory_context(memories: list[dict]) -> str:
     """
     Format recalled memories as a context block for the LLM prompt.
@@ -333,7 +332,7 @@ def _format_memory_context(memories: list[dict]) -> str:
         return ""
     lines = ["<memória_de_sessões_anteriores>"]
     for m in memories:
-        ts = m.get("timestamp", "")[:19]  # "2024-01-15T10:32:00"
+        ts = m.get("timestamp", "")[:19]
         mtype = m.get("memory_type", "note")
         lines.append(f"[{ts}] ({mtype}) {m['text'][:300]}")
     lines.append("</memória_de_sessões_anteriores>")

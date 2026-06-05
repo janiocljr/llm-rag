@@ -14,7 +14,6 @@ class APIClient:
         self._timeout_long = 600
 
 
-
     def _get(self, path: str) -> dict[str, Any]:
         try:
             r = requests.get(f"{self._base}{path}", timeout=self._timeout)
@@ -99,7 +98,6 @@ class APIClient:
             return {"error": f"HTTP {exc.response.status_code}: {detail}"}
         except Exception as exc:
             return {"error": str(exc)}
-
 
 
     def health(self) -> dict[str, Any]:

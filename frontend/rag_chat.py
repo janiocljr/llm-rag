@@ -42,7 +42,6 @@ if "demo_mode" not in st.session_state:
     st.session_state.demo_mode = False
 
 
-
 sidebar_state = render_sidebar()
 
 client = APIClient(base_url=sidebar_state.api_url)

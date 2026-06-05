@@ -57,7 +57,7 @@ try:
     import camelot
 
     _HAS_CAMELOT = True
-except ImportError:  # pragma: no cover
+except ImportError:
     camelot = None
     _HAS_CAMELOT = False
 
@@ -161,10 +161,6 @@ class RecursiveCharSplitter:
 
         if current:
             self._split_recursive(current, remaining_seps, result)
-
-
-
-
 
 
 class PDFIngester:

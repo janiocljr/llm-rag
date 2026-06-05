@@ -32,8 +32,6 @@ class Settings(BaseSettings):
     )
 
 
-
-
     data_dir: Path = Field(
         default=Path("data/pdfs"),
         description="Directory that contains the source PDF files.",
@@ -46,8 +44,6 @@ class Settings(BaseSettings):
         default=Path("models"),
         description="Directory where local LLM weights are stored.",
     )
-
-
 
 
     chunk_size: int = Field(
@@ -67,8 +63,6 @@ class Settings(BaseSettings):
             "~12 %% of chunk_size is the empirically-observed sweet-spot."
         ),
     )
-
-
 
 
     embedding_model: str = Field(
@@ -96,8 +90,6 @@ class Settings(BaseSettings):
     )
 
 
-
-
     faiss_index_type: Literal["flat", "ivf", "hnsw"] = Field(
         default="flat",
         description=(
@@ -107,8 +99,6 @@ class Settings(BaseSettings):
             "'ivf' = inverted-file, good middle-ground."
         ),
     )
-
-
 
 
     retrieval_top_k: int = Field(
@@ -138,8 +128,6 @@ class Settings(BaseSettings):
             "0.6 balances both — avoids returning near-duplicate chunks."
         ),
     )
-
-
 
 
     llm_model_path: str = Field(
@@ -178,8 +166,6 @@ class Settings(BaseSettings):
     )
 
 
-
-
     system_prompt: str = Field(
         default=(
             "Você é um assistente especializado em análise de documentos. "
@@ -191,8 +177,6 @@ class Settings(BaseSettings):
             "Sempre cite o documento de origem e número da página para cada informação."
         ),
     )
-
-
 
 
     use_chroma: bool = Field(default=False, description="Use ChromaDB instead of FAISS vector store")
@@ -208,8 +192,6 @@ class Settings(BaseSettings):
     mongo_db: str = Field(default="rag_knowledge", description="MongoDB database name")
 
 
-
-
     @field_validator("similarity_threshold")
     @classmethod
     def validate_threshold(cls, v: float) -> float:
@@ -223,7 +205,6 @@ class Settings(BaseSettings):
         if not 0.0 <= v <= 1.0:
             raise ValueError("mmr_lambda must be in [0, 1]")
         return v
-
 
 
 settings = Settings()

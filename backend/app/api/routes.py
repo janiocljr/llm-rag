@@ -31,10 +31,6 @@ def _pipeline(request: Request):
     return request.app.state.pipeline
 
 
-
-
-
-
 @router.post(
     "/ingest",
     response_model=IngestResponse,
@@ -57,10 +53,6 @@ async def ingest(body: IngestRequest, request: Request) -> IngestResponse:
     except Exception as exc:
         logger.exception("Ingestion failed")
         raise HTTPException(status_code=500, detail=str(exc))
-
-
-
-
 
 
 @router.post(
@@ -181,10 +173,6 @@ async def query_stream(body: QueryRequest, request: Request):
     except Exception as exc:
         logger.exception("Streaming query failed")
         raise HTTPException(status_code=500, detail=str(exc))
-
-
-
-
 
 
 @router.get(

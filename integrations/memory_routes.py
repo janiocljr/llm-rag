@@ -38,7 +38,6 @@ def _mem(request: Request):
     return request.app.state.memory
 
 
-
 class NewSessionRequest(BaseModel):
     title: str = ""
     tags:  list[str] = []
@@ -82,7 +81,6 @@ class RecallRequest(BaseModel):
     threshold:  float = 0.50
 
 
-
 @router.post("/sessions", response_model=NewSessionResponse, summary="Start a new chat session")
 async def new_session(body: NewSessionRequest, request: Request):
     """Create a new session record. Returns session_id for subsequent queries."""
@@ -112,7 +110,6 @@ async def close_session(session_id: str, body: CloseSessionRequest, request: Req
     mem = _mem(request)
     mem.close_session(session_id, summary=body.summary)
     return {"ok": True, "session_id": session_id}
-
 
 
 @router.post("/notes", summary="Save a markdown note to the knowledge base")
@@ -153,7 +150,6 @@ async def save_task(body: SaveTaskRequest, request: Request):
     return {"ok": True, **result}
 
 
-
 @router.get("/documents", summary="List or search knowledge base documents")
 async def list_documents(
     request: Request,
@@ -186,7 +182,6 @@ async def get_document(mongo_id: str, request: Request):
     return doc
 
 
-
 @router.post("/recall", summary="Recall semantically relevant past memories for a query")
 async def recall_context(body: RecallRequest, request: Request):
     """
@@ -201,7 +196,6 @@ async def recall_context(body: RecallRequest, request: Request):
         threshold=body.threshold,
     )
     return {"memories": memories, "total": len(memories)}
-
 
 
 @router.get("/stats", summary="Memory system stats (ChromaDB + MongoDB)")

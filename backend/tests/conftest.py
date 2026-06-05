@@ -12,9 +12,9 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 try:
-    from app.core.ingestion import Chunk  #type: ignore
+    from app.core.ingestion import Chunk
 except Exception:
-    from app.models.schemas import DocumentChunk as Chunk  #type: ignore
+    from app.models.schemas import DocumentChunk as Chunk
 
 from app.core.config import settings as app_settings
 from app.core.text_utils import estimate_tokens, clean_text

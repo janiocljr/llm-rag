@@ -93,7 +93,6 @@ def get_task_store() -> MongoTaskStore:
     return _task_store
 
 
-
 class MemoryOrchestrator:
     """
     High-level persistent memory API used by the RAG pipeline and API routes.
@@ -166,7 +165,7 @@ class MemoryOrchestrator:
 
         memories = self._memory_store.recall(
             query_embedding=q_embedding,
-            top_k=top_k * 2,  # over-fetch then filter
+            top_k=top_k * 2,
             threshold=threshold,
         )
 

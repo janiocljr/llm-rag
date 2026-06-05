@@ -28,10 +28,6 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-
-
-
-
 @pytest.fixture(scope="session")
 def sample_text() -> str:
     """Realistic multi-paragraph text that resembles PDF content."""
@@ -66,11 +62,6 @@ def tmp_dir() -> Generator[Path, None, None]:
     d = Path(tempfile.mkdtemp(prefix="rag_test_"))
     yield d
     shutil.rmtree(d, ignore_errors=True)
-
-
-
-
-
 
 
 class TestChunking:
@@ -114,7 +105,7 @@ class TestChunking:
 
         missing = [
             w for w in original_words
-            if len(w) > 5 and w not in combined  #ignore short stop-words
+            if len(w) > 5 and w not in combined
         ]
         assert len(missing) == 0, f"Words missing from chunks: {missing[:10]}"
 
@@ -174,11 +165,6 @@ class TestChunking:
         assert "  " not in cleaned, "Double spaces should be collapsed"
 
         assert "understanding" in cleaned or "under-\nstanding" not in cleaned
-
-
-
-
-
 
 
 class TestEmbedder:
@@ -252,11 +238,6 @@ class TestEmbedder:
         """Embedding an empty list should return an empty array."""
         result = embedder.embed_documents([])
         assert result.shape == (0, 384)
-
-
-
-
-
 
 
 class TestVectorStore:
@@ -365,11 +346,6 @@ class TestVectorStore:
         assert len(mmr_result) <= 2
 
 
-
-
-
-
-
 class TestRetrievalPrecision:
     """
     Precision@k evaluation.
@@ -448,11 +424,6 @@ class TestRetrievalPrecision:
                 f"Precision@{k} = {precision:.2f} — below acceptable threshold 0.6. "
                 f"Retrieved: {retrieved_ids}, Relevant: {relevant_ids}"
             )
-
-
-
-
-
 
 
 class TestHallucinationGuard:
@@ -538,11 +509,6 @@ class TestHallucinationGuard:
             assert results == [], "Empty store should return empty results"
 
 
-
-
-
-
-
 class TestPromptConstruction:
     """Tests for build_prompt()."""
 
@@ -601,11 +567,6 @@ class TestPromptConstruction:
         prompt = build_prompt("Test question", chunks, "Be precise.")
         for i in range(3):
             assert f"doc{i}.pdf" in prompt, f"Source doc{i}.pdf missing from prompt"
-
-
-
-
-
 
 
 class TestAPI:

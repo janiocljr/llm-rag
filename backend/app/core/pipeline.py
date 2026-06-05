@@ -87,9 +87,6 @@ class RAGPipeline:
         )
 
 
-
-
-
     def ingest(self, force_reindex: bool = False) -> IngestResponse:
         """
         Parse all PDFs in data_dir, embed chunks, and index them.
@@ -129,8 +126,6 @@ class RAGPipeline:
         self.vector_store.save()
 
 
-
-
         try:
             pdf_store = get_pdf_store()
             doc_store = get_doc_store()
@@ -140,8 +135,6 @@ class RAGPipeline:
                 emb_list = embeddings.tolist() if hasattr(embeddings, "tolist") else list(embeddings)
                 chroma_ids = pdf_store.add(chunks=chunks, embeddings=emb_list)
                 logger.info(f"ChromaDB: upserted {len(chroma_ids)} chunks")
-
-
 
 
                 try:
@@ -182,9 +175,6 @@ class RAGPipeline:
             documents_processed=len(self.vector_store.documents),
             latency_ms=elapsed_ms,
         )
-
-
-
 
 
     def query(self, request: QueryRequest) -> QueryResponse:

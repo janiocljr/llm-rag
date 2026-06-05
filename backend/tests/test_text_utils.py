@@ -105,7 +105,7 @@ class TestEstimateTokens:
         """Test basic token estimation."""
         text = "Hello world"
         tokens = estimate_tokens(text)
-        assert tokens == 2  # 11 chars // 4 = 2
+        assert tokens == 2
 
     def test_estimate_tokens_empty_string(self) -> None:
         """Test token estimation for empty string."""

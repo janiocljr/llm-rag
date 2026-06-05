@@ -59,7 +59,6 @@ MODELS = {
 DEFAULT_MODEL = "mistral-7b"
 
 
-
 def _progress_hook(block_num: int, block_size: int, total_size: int) -> None:
     downloaded = block_num * block_size
     if total_size > 0:
@@ -93,12 +92,11 @@ def download_model(model_key: str = DEFAULT_MODEL) -> Path:
         print(f"\n✅  Downloaded to {dest}")
     except Exception as e:
         if dest.exists():
-            dest.unlink()  # remove partial download
+            dest.unlink()
         print(f"\n❌  Download failed: {e}")
         raise
 
     return dest
-
 
 
 if __name__ == "__main__":

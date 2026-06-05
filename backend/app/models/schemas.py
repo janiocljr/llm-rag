@@ -11,10 +11,6 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-
-
-
-
 class DocumentChunk(BaseModel):
     """
     A single piece of text extracted from a PDF.
@@ -62,10 +58,6 @@ class RetrievedChunk(BaseModel):
             f"--- Source: {self.chunk.source_file} | Page: {self.chunk.page_number} "
             f"| Score: {self.score:.3f} ---\n{self.chunk.text}"
         )
-
-
-
-
 
 
 class QueryRequest(BaseModel):

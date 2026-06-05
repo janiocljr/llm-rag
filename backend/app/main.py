@@ -21,16 +21,11 @@ from app.core.pipeline import RAGPipeline
 from app.core.memory import MemoryOrchestrator
 
 
-
-
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-
-
 
 
 @asynccontextmanager
@@ -64,9 +59,6 @@ async def lifespan(app: FastAPI):
     logger.info("🛑  Shutting down RAG system")
 
 
-
-
-
 app = FastAPI(
     title="RAG System — Offline PDF Q&A",
     description=(
@@ -85,9 +77,6 @@ app.add_middleware(
 )
 
 
-
-
-
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Unhandled exception: {exc}", exc_info=True)
@@ -97,13 +86,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-
-
-
 app.include_router(router, prefix="/api/v1")
-
-
-
 
 
 @app.get("/health", tags=["system"])

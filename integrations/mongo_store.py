@@ -68,13 +68,11 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-
 def _serialize(doc: dict) -> dict:
     """Convert ObjectId to str for JSON serialisation."""
     if "_id" in doc and isinstance(doc["_id"], ObjectId):
         doc["_id"] = str(doc["_id"])
     return doc
-
 
 
 class MongoDocumentStore:
@@ -246,7 +244,6 @@ class MongoDocumentStore:
         }
 
 
-
 class MongoSessionStore:
     """
     Manages chat session records.
@@ -292,7 +289,7 @@ class MongoSessionStore:
     def add_turn(
         self,
         session_id: str,
-        role: str,      # "user" | "assistant" | "system"
+        role: str,
         content: str,
         chroma_id: Optional[str] = None,
     ) -> bool:
@@ -329,7 +326,6 @@ class MongoSessionStore:
             {"$addToSet": {"doc_ids": mongo_doc_id}},
         )
         return result.modified_count > 0
-
 
 
 class MongoTaskStore:

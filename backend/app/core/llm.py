@@ -87,9 +87,6 @@ class LocalLLM:
         self.temperature = temperature
 
 
-
-
-
     def generate(self, prompt: str) -> str:
         """
         Generate a response for the given prompt string.
@@ -127,7 +124,6 @@ class LocalLLM:
             return
 
 
-
         try:
             for chunk in self._model(
                 prompt,
@@ -163,10 +159,6 @@ class LocalLLM:
 
             full = self.generate(prompt)
             yield full
-
-
-
-
 
 
 def build_prompt(
