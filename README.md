@@ -551,19 +551,10 @@ python3 start.py  # Reconstrói o índice
 | **Frontend** | Streamlit | 1.40+ | Interface web |
 | **Utilities** | pydantic | 2.0+ | Validação de schemas |
 
----
-
-## 📄 Licença
-
-[Adicione sua licença aqui]
-
----
 
 ## ✉️ Contato
 
-- **Autor**: Janio Lima
-- **Email**: pereira.zanellagra@gmail.com
-- **Repositório**: [GitHub URL]
+- **Autores**: Janio Lima / Arthur Damiao / Luis Felipe Rudnik / Gabryel Zanella
 
 ---
 
