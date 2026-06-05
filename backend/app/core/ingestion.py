@@ -49,55 +49,14 @@ except Exception:  #pragma: no cover - optional dependency
 import pandas as pd
 
 from app.models.schemas import DocumentChunk
+from app.core.text_utils import estimate_tokens, clean_text
+from app.core.advanced_ingestion import (
+    HeaderFooterDetector,
+    SemanticParagraphChunker,
+    VectorizedHeaderGenerator,
+)
 
 logger = logging.getLogger(__name__)
-
-
-
-
-
-_MULTI_SPACE = re.compile(r" {2,}")
-_MULTI_NEWLINE = re.compile(r"\n{3,}")
-_HYPHEN_EOL = re.compile(r"-\n(\w)")
-_PAGE_NUM = re.compile(r"^\s*\d+\s*$", re.MULTILINE)
-
-
-def clean_text(raw: str) -> str:
-    """
-    Normalise raw PDF text.
-
-    Steps (in order):
-    1. Unicode normalisation (NFC) — handles ligatures like 'ﬁ' → 'fi'.
-    2. Re-join hyphenated line-breaks common in justified PDF text.
-    3. Remove lone page-number lines.
-    4. Collapse excessive whitespace.
-    5. Strip leading/trailing whitespace.
-    """
-    text = unicodedata.normalize("NFC", raw)
-    text = _HYPHEN_EOL.sub(r"\1", text)
-    text = _PAGE_NUM.sub("", text)
-    text = _MULTI_NEWLINE.sub("\n\n", text)
-    text = _MULTI_SPACE.sub(" ", text)
-    return text.strip()
-
-
-
-
-
-
-def estimate_tokens(text: str) -> int:
-    """
-    Approximate token count using the chars/4 heuristic.
-
-    For English/Portuguese prose this is accurate within ±15 %.
-    We deliberately avoid adding a heavy tokeniser dependency just for
-    chunking — the small estimation error is acceptable.
-    """
-    return max(1, len(text) // 4)
-
-
-
-
 
 
 class RecursiveCharSplitter:
@@ -181,14 +140,104 @@ class PDFIngester:
     pdfplumber extracts text with proper word-spacing reconstruction and
     handles complex layouts (multi-column, tables) better than pypdf.
     It also gives us bounding-box metadata for future layout-aware chunking.
+
+    ADVANCED FEATURES
+    -----------------
+    - Header/footer detection and removal
+    - Semantic paragraph-based chunking
+    - Vectorized document headers
+    - Semantic type classification
     """
 
-    def __init__(self, chunk_size: int = 512, chunk_overlap: int = 64, index_dir: Path | None = None):
+    def __init__(self, chunk_size: int = 512, chunk_overlap: int = 64, index_dir: Path | None = None, use_semantic_chunking: bool = True, remove_headers_footers: bool = True):
         self.splitter = RecursiveCharSplitter(
             max_tokens=chunk_size,
             overlap_tokens=chunk_overlap,
         )
+        self.semantic_splitter = SemanticParagraphChunker(
+            max_tokens=chunk_size,
+            overlap_tokens=chunk_overlap,
+        )
+        self.header_detector = HeaderFooterDetector()
+        self.header_generator = VectorizedHeaderGenerator()
         self._index_dir = Path(index_dir) if index_dir else None
+        self.use_semantic_chunking = use_semantic_chunking
+        self.remove_headers_footers = remove_headers_footers
+
+    def _extract_tables_from_page(self, path: Path, page_num: int, page) -> str:
+        """Extract tables from a page, return markdown text."""
+        tables_text = ""
+
+        if _HAS_CAMELOT:
+            try:
+                tables = camelot.read_pdf(str(path), pages=str(page_num), flavor="lattice")
+                if not tables or tables.n == 0:
+                    tables = camelot.read_pdf(str(path), pages=str(page_num), flavor="stream")
+
+                if tables and tables.n > 0:
+                    for t_idx, table in enumerate(tables):
+                        try:
+                            md = self._format_table(table)
+                            tables_text += f"\n[Tabela {t_idx + 1} da página {page_num} — Camelot]:\n{md}\n"
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+
+        if not tables_text:
+            for t_idx, table in enumerate(page.extract_tables()):
+                if not table:
+                    continue
+                rows = [" | ".join(cell.strip() if cell else "" for cell in row) for row in table]
+                table_str = "\n".join(rows)
+                tables_text += f"\n[Tabela {t_idx + 1} da página {page_num} — pdfplumber]:\n{table_str}\n"
+
+        return tables_text
+
+    def _format_table(self, table) -> str:
+        """Format table to markdown or CSV."""
+        df = table.df
+        try:
+            return df.to_markdown(index=False)
+        except Exception:
+            return df.to_csv(index=False)
+
+    def _process_page(self, path: Path, page_idx: int, page, filename: str) -> Iterator[DocumentChunk]:
+        """Process a single PDF page."""
+        page_num = page_idx + 1
+        raw_text = page.extract_text() or ""
+
+        if self.remove_headers_footers:
+            raw_text = self.header_detector.remove_from_text(raw_text)
+
+        tables_text = self._extract_tables_from_page(path, page_num, page)
+        full_text = raw_text + tables_text
+
+        if not full_text.strip():
+            return
+
+        cleaned = clean_text(full_text)
+        page_chunks = (
+            self.semantic_splitter.split(cleaned)
+            if self.use_semantic_chunking
+            else self.splitter.split(cleaned)
+        )
+
+        for chunk_idx, chunk_text in enumerate(page_chunks):
+            if not chunk_text.strip():
+                continue
+
+            yield DocumentChunk(
+                chunk_id=f"{path.stem}_p{page_num}_c{chunk_idx}",
+                text=chunk_text,
+                source_file=filename,
+                page_number=page_num,
+                chunk_index=chunk_idx,
+                total_chunks_in_page=len(page_chunks),
+                char_count=len(chunk_text),
+                token_estimate=estimate_tokens(chunk_text),
+                semantic_type=self._infer_semantic_type(chunk_text),
+            )
 
     def load_pdf(self, path: Path) -> Iterator[DocumentChunk]:
         filename = path.name
@@ -199,115 +248,30 @@ class PDFIngester:
                 total_pages = len(pdf.pages)
                 logger.info(f"  {total_pages} pages found")
 
+                if self.remove_headers_footers:
+                    self.header_detector.detect_from_pages(pdf.pages)
+
                 for page_idx, page in enumerate(pdf.pages):
-                    page_num = page_idx + 1
-
-                    raw_text = page.extract_text() or ""
-                    tables_text = ""
-
-
-
-
-
-                    if _HAS_CAMELOT:
-                        try:
-
-                            tables = camelot.read_pdf(str(path), pages=str(page_num), flavor="lattice")
-                            if not tables or tables.n == 0:
-                                tables = camelot.read_pdf(str(path), pages=str(page_num), flavor="stream")
-
-                            if tables and tables.n > 0:
-
-                                if self._index_dir:
-                                    tables_dir = self._index_dir / "tables"
-                                else:
-                                    tables_dir = path.parent.parent / "index" / "tables"
-                                tables_dir.mkdir(parents=True, exist_ok=True)
-                                for t_idx, table in enumerate(tables):
-                                    try:
-                                        df = table.df
-
-                                        csv_name = f"{path.stem}_p{page_num}_t{t_idx+1}.csv"
-                                        csv_path = tables_dir / csv_name
-                                        try:
-                                            df.to_csv(csv_path, index=False)
-                                        except Exception:
-
-                                            pd.DataFrame(df).to_csv(csv_path, index=False)
-
-
-                                        try:
-                                            md = df.to_markdown(index=False)
-                                        except Exception:
-                                            md = df.to_csv(index=False)
-
-
-                                        if self._index_dir:
-                                            rel_csv = str(csv_path.relative_to(self._index_dir))
-                                        else:
-
-                                            rel_csv = str(Path("tables") / csv_name)
-
-
-                                        yield DocumentChunk(
-                                            chunk_id=f"{path.stem}_p{page_num}_t{t_idx+1}",
-                                            text=md,
-                                            source_file=filename,
-                                            page_number=page_num,
-                                            chunk_index=0,
-                                            total_chunks_in_page=1,
-                                            char_count=len(md),
-                                            token_estimate=estimate_tokens(md),
-                                            is_table=True,
-                                            table_csv_path=rel_csv,
-                                        )
-
-                                        tables_text += f"\n[Tabela {t_idx + 1} da página {page_num} — Camelot]:\n{md}\n"
-                                    except Exception as e:
-                                        logger.debug(f"Camelot table parsing failed on page {page_num}: {e}")
-                        except Exception as e:
-                            logger.debug(f"Camelot failed on page {page_num}: {e}")
-
-
-                    if not tables_text:
-                        tables = page.extract_tables()
-                        for t_idx, table in enumerate(tables):
-                            if not table:
-                                continue
-                            rows = []
-                            for row in table:
-                                cleaned_row = [cell.strip() if cell else "" for cell in row]
-                                rows.append(" | ".join(cleaned_row))
-                            table_str = "\n".join(rows)
-                            tables_text += f"\n[Tabela {t_idx + 1} da página {page_num} — pdfplumber]:\n{table_str}\n"
-
-                    full_text = raw_text + tables_text
-
-                    if not full_text.strip():
-                        logger.debug(f"  Page {page_num}: empty — skipped")
-                        continue
-
-                    cleaned = clean_text(full_text)
-                    page_chunks = self.splitter.split(cleaned)
-
-                    for chunk_idx, chunk_text in enumerate(page_chunks):
-                        if not chunk_text.strip():
-                            continue
-
-                        yield DocumentChunk(
-                            chunk_id=f"{path.stem}_p{page_num}_c{chunk_idx}",
-                            text=chunk_text,
-                            source_file=filename,
-                            page_number=page_num,
-                            chunk_index=chunk_idx,
-                            total_chunks_in_page=len(page_chunks),
-                            char_count=len(chunk_text),
-                            token_estimate=estimate_tokens(chunk_text),
-                        )
+                    yield from self._process_page(path, page_idx, page, filename)
 
         except Exception as exc:
             logger.error(f"Failed to parse {filename}: {exc}", exc_info=True)
             raise
+
+    def _infer_semantic_type(self, text: str) -> str:
+        """Infer semantic type of a chunk."""
+        text_lower = text.lower().strip()
+
+        if text_lower.startswith(("#", "##", "###")) or re.match(r"^[A-Z][A-Z\s]{3,}:", text):
+            return "heading"
+        elif re.match(r"^\s*[-•*]\s+", text):
+            return "list"
+        elif "\n" not in text and len(text.split()) < 20:
+            return "title"
+        elif len(text) < 100:
+            return "snippet"
+        else:
+            return "paragraph"
 
     def load_directory(self, directory: Path) -> list[DocumentChunk]:
         """Load all PDFs in `directory` and return a flat list of chunks."""

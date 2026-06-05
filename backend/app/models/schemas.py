@@ -39,6 +39,10 @@ class DocumentChunk(BaseModel):
     is_table: bool = Field(default=False, description="True for chunks generated from detected tables.")
     table_csv_path: Optional[str] = Field(default=None, description="Filesystem path to CSV extracted from table, if any.")
 
+    semantic_type: Optional[str] = Field(default=None, description="Semantic classification: heading, paragraph, list, table, etc.")
+    keywords: list[str] = Field(default_factory=list, description="Extracted keywords from chunk content.")
+    semantic_group_id: Optional[str] = Field(default=None, description="ID of semantic pseudo-document group this chunk belongs to.")
+
     @property
     def citation(self) -> str:
         """Human-readable citation string, e.g. '[report_2024.pdf, p. 3]'."""
