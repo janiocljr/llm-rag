@@ -1,7 +1,3 @@
-"""
-RAG Chat — Entry point
-Run with: streamlit run frontend/rag_chat.py
-"""
 from __future__ import annotations
 
 import sys

@@ -1,4 +1,3 @@
-"""HTTP client for the RAG FastAPI backend — no Streamlit dependencies."""
 from __future__ import annotations
 
 from typing import Any
@@ -34,12 +33,6 @@ class APIClient:
         top_k: int = 5,
         similarity_threshold: float = 0.35,
     ):
-        """
-        POST /api/v1/query/stream and yield parsed SSE events as dicts.
-
-        Yields JSON-decoded event payloads as they arrive. Caller should
-        iterate over the generator and handle `{type: 'meta'|'token'|'done'}`.
-        """
         url = f"{self._base}/api/v1/query/stream"
         payload = {
             "question": question,
