@@ -113,7 +113,7 @@ classDiagram
         +max_new_tokens: int
         +temperature: float
         +generate(prompt) str
-        -build_prompt() str
+        -build_messages() str
     }
 ```
 
@@ -471,7 +471,7 @@ VectorStore.search()
       ↓
       Top K chunks selected
       ↓
-      build_prompt()
+      build_messages()
       ↓
       Full Prompt
       ↓

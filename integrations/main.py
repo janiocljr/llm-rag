@@ -1,15 +1,3 @@
-"""
-app/main.py  —  v3 (ChromaDB + MongoDB)
-========================================
-FastAPI application factory.
-
-Lifespan
---------
-1. Initialise RAGPipeline (loads embedder + LLM + connects to ChromaDB/MongoDB).
-2. Attach pipeline and memory orchestrator to app.state.
-3. Auto-ingest PDFs on first boot if the vector store is empty.
-"""
-
 from __future__ import annotations
 
 import logging

@@ -1,4 +1,3 @@
-"""Unit tests for utility functions."""
 from __future__ import annotations
 
 import pytest
@@ -21,7 +20,7 @@ class TestCleanText:
 
     def test_normalizes_unicode(self):
 
-        assert clean_text("\ufb01le") == "file"
+        assert clean_text("ﬁle") == "file"
 
     def test_empty_string(self):
         assert clean_text("") == ""

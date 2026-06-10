@@ -81,7 +81,7 @@ with col_main:
 
 
             placeholder = st.empty()
-            assistant_meta = {"latency_ms": 0, "found_in_documents": True, "chunks": []}
+            assistant_meta = {"latency_ms": 0, "found_in_documents": True, "chunks": [], "full_prompt": ""}
             content_buf = ""
 
             for event in client.query_stream(
@@ -91,6 +91,14 @@ with col_main:
             ):
                 if event.get("type") == "meta":
                     assistant_meta["chunks"] = event.get("retrieved_chunks", [])
+                    raw_prompt = event.get("full_prompt", "")
+                    if isinstance(raw_prompt, list):
+                        assistant_meta["full_prompt"] = "\n\n".join(
+                            f"[{m.get('role','').upper()}]\n{m.get('content','')}"
+                            for m in raw_prompt
+                        )
+                    else:
+                        assistant_meta["full_prompt"] = raw_prompt
 
                     placeholder.markdown(
                         f'<div class="bubble-ai">{content_buf}</div>', unsafe_allow_html=True
@@ -101,14 +109,13 @@ with col_main:
                         f'<div class="bubble-ai">{content_buf}</div>', unsafe_allow_html=True
                     )
                 elif event.get("type") in ("complete", "done"):
-
                     content_buf += event.get("text", "")
                     st.session_state.last_response = {
                         "answer": content_buf,
                         "latency_ms": 0,
-                        "found_in_documents": True,
+                        "found_in_documents": bool(assistant_meta.get("chunks")),
                         "retrieved_chunks": assistant_meta.get("chunks", []),
-                        "full_prompt": event.get("full_prompt", ""),
+                        "full_prompt": assistant_meta.get("full_prompt", ""),
                     }
                     st.session_state.messages.append({
                         "role": "assistant",

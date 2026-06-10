@@ -1,9 +1,3 @@
-"""
-app/core/mongo_store.py
-=======================
-MongoDB client wrapper — document memory layer (from files 2)
-"""
-
 from __future__ import annotations
 
 import logging
@@ -49,7 +43,7 @@ class MongoDocumentStore:
     def col(self) -> Collection:
         return _db()["documents"]
 
-    def create(self, title: str, content: str, doc_type: str = "note", tags: Optional[list[str]] = None, source_file: Optional[str] = None, page_number: Optional[int] = None, session_id: Optional[str] = None, chroma_ids: Optional[list[str]] = None, status: str = "active", metadata: Optional[dict] = None,) -> str:
+    def create(self, title: str, content: str, doc_type: str = "note", tags: Optional[list[str]] = None, source_file: Optional[str] = None, page_number: Optional[int] = None, session_id: Optional[str] = None, chroma_ids: Optional[list[str]] = None, status: str = "active", metadata: Optional[dict] = None) -> str:
         now = _now()
         doc = {
             "title": title,
@@ -70,7 +64,7 @@ class MongoDocumentStore:
         logger.debug(f"Document created [{doc_type}] id={mongo_id} title='{title[:60]}'")
         return mongo_id
 
-    def create_from_pdf_chunk(self, chunk_text: str, source_file: str, page_number: int, chunk_id: str, chroma_ids: Optional[list[str]] = None, tags: Optional[list[str]] = None, session_id: Optional[str] = None,) -> str:
+    def create_from_pdf_chunk(self, chunk_text: str, source_file: str, page_number: int, chunk_id: str, chroma_ids: Optional[list[str]] = None, tags: Optional[list[str]] = None, session_id: Optional[str] = None) -> str:
         title = f"{source_file} — p.{page_number} [{chunk_id}]"
         return self.create(
             title=title,
@@ -192,7 +186,7 @@ class MongoTaskStore:
     def col(self) -> Collection:
         return _db()["tasks"]
 
-    def create(self, title: str, description: str = "", priority: str = "medium", tags: Optional[list[str]] = None, due_date: Optional[datetime] = None, session_id: Optional[str] = None, chroma_id: Optional[str] = None,) -> str:
+    def create(self, title: str, description: str = "", priority: str = "medium", tags: Optional[list[str]] = None, due_date: Optional[datetime] = None, session_id: Optional[str] = None, chroma_id: Optional[str] = None) -> str:
         now = _now()
         doc = {"title": title, "description": description, "status": "todo", "priority": priority, "tags": tags or [], "due_date": due_date, "session_id": session_id, "chroma_id": chroma_id, "created_at": now, "updated_at": now}
         result = self.col.insert_one(doc)

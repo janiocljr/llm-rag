@@ -1,34 +1,3 @@
-"""
-app/core/mongo_store.py
-=======================
-MongoDB client wrapper — document memory layer (Obsidian-style knowledge base).
-
-Collections
------------
-documents   — markdown documents (notes, tasks, questions, PDF chunks, knowledge)
-sessions    — chat session records with full turn history
-tasks       — structured task items with status tracking
-memory_snapshots — periodic ChromaDB stats for observability
-
-Each document schema
---------------------
-{
-    "_id":          ObjectId (auto),
-    "title":        str,
-    "content":      str,              # full markdown
-    "doc_type":     "note"|"task"|"question"|"conversation"|"knowledge"|"pdf_chunk",
-    "tags":         [str],
-    "status":       "active"|"archived"|"draft",
-    "source_file":  str | None,       # if from a PDF
-    "page_number":  int | None,
-    "session_id":   str | None,       # chat session reference
-    "chroma_ids":   [str],            # ChromaDB embedding IDs
-    "created_at":   datetime,
-    "updated_at":   datetime,
-    "metadata":     {},               # open-ended extra fields
-}
-"""
-
 from __future__ import annotations
 
 import logging
@@ -69,19 +38,12 @@ def _now() -> datetime:
 
 
 def _serialize(doc: dict) -> dict:
-    """Convert ObjectId to str for JSON serialisation."""
     if "_id" in doc and isinstance(doc["_id"], ObjectId):
         doc["_id"] = str(doc["_id"])
     return doc
 
 
 class MongoDocumentStore:
-    """
-    Obsidian-style knowledge base over the `documents` collection.
-
-    Each document is a markdown note with structured metadata.
-    chroma_ids links it to the semantic embeddings stored in ChromaDB.
-    """
 
     @property
     def col(self) -> Collection:
@@ -101,7 +63,6 @@ class MongoDocumentStore:
         status: str = "active",
         metadata: Optional[dict] = None,
     ) -> str:
-        """Insert a document and return its MongoDB ObjectId as a string."""
         now = _now()
         doc = {
             "title":       title,
@@ -131,7 +92,6 @@ class MongoDocumentStore:
         chroma_ids: Optional[list[str]] = None,
         tags: Optional[list[str]] = None,
     ) -> str:
-        """Convenience method — save one PDF chunk as a knowledge document."""
         title = f"{source_file} — p.{page_number} [{chunk_id}]"
         return self.create(
             title=title,
@@ -160,10 +120,6 @@ class MongoDocumentStore:
         tags: Optional[list[str]] = None,
         limit: int = 20,
     ) -> list[dict]:
-        """
-        Full-text search over title + content + tags.
-        Uses the MongoDB text index created by mongo-init.js.
-        """
         q: dict[str, Any] = {"$text": {"$search": query}}
         if doc_type:
             q["doc_type"] = doc_type
@@ -178,7 +134,6 @@ class MongoDocumentStore:
         return [_serialize(d) for d in cursor]
 
     def list_by_session(self, session_id: str) -> list[dict]:
-        """All documents belonging to a specific chat session."""
         cursor = self.col.find({"session_id": session_id}).sort("created_at", ASCENDING)
         return [_serialize(d) for d in cursor]
 
@@ -187,7 +142,6 @@ class MongoDocumentStore:
         doc_type: Optional[str] = None,
         limit: int = 50,
     ) -> list[dict]:
-        """Most recently created documents, optionally filtered by type."""
         q = {}
         if doc_type:
             q["doc_type"] = doc_type
@@ -204,7 +158,6 @@ class MongoDocumentStore:
 
 
     def update(self, mongo_id: str, **fields) -> bool:
-        """Partial update — only the provided fields are changed."""
         fields["updated_at"] = _now()
         result = self.col.update_one(
             {"_id": ObjectId(mongo_id)},
@@ -213,7 +166,6 @@ class MongoDocumentStore:
         return result.modified_count > 0
 
     def append_chroma_ids(self, mongo_id: str, chroma_ids: list[str]) -> bool:
-        """Add ChromaDB IDs to an existing document without overwriting."""
         result = self.col.update_one(
             {"_id": ObjectId(mongo_id)},
             {
@@ -245,24 +197,6 @@ class MongoDocumentStore:
 
 
 class MongoSessionStore:
-    """
-    Manages chat session records.
-
-    A session document:
-    {
-        "_id":         ObjectId,
-        "session_id":  str (UUID),
-        "title":       str,
-        "summary":     str,
-        "turns":       [{role, content, timestamp}, ...],
-        "tags":        [str],
-        "started_at":  datetime,
-        "ended_at":    datetime | None,
-        "chroma_ids":  [str],   # memory embeddings from this session
-        "doc_ids":     [str],   # MongoDB document IDs created this session
-        "metadata":    {},
-    }
-    """
 
     @property
     def col(self) -> Collection:
@@ -329,24 +263,6 @@ class MongoSessionStore:
 
 
 class MongoTaskStore:
-    """
-    Structured task tracking.
-
-    Task document:
-    {
-        "_id":         ObjectId,
-        "title":       str,
-        "description": str,
-        "status":      "todo"|"in_progress"|"done"|"cancelled",
-        "priority":    "low"|"medium"|"high"|"critical",
-        "tags":        [str],
-        "due_date":    datetime | None,
-        "session_id":  str | None,
-        "chroma_id":   str | None,
-        "created_at":  datetime,
-        "updated_at":  datetime,
-    }
-    """
 
     @property
     def col(self) -> Collection:

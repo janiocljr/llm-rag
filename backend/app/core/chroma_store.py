@@ -1,9 +1,3 @@
-"""
-app/core/chroma_store.py
-================================
-ChromaDB client wrapper (from files 2)
-"""
-
 from __future__ import annotations
 
 import logging
@@ -200,7 +194,7 @@ class ChromaMemoryStore:
         logger.info(f"Memory batch saved: {len(memories)} units")
         return ids
 
-    def recall(self, query_embedding: list[float], top_k: int = 5, threshold: float = 0.50, session_id: Optional[str] = None, memory_types: Optional[list[str]] = None,) -> list[dict]:
+    def recall(self, query_embedding: list[float], top_k: int = 5, threshold: float = 0.50, session_id: Optional[str] = None, memory_types: Optional[list[str]] = None) -> list[dict]:
         if self._col.count() == 0:
             return []
 
@@ -230,7 +224,7 @@ class ChromaMemoryStore:
             return []
 
         memories: list[dict] = []
-        for cid, doc, meta, dist in zip(results["ids"][0], results["documents"][0], results["metadatas"][0], results["distances"][0],):
+        for cid, doc, meta, dist in zip(results["ids"][0], results["documents"][0], results["metadatas"][0], results["distances"][0]):
             similarity = 1.0 - dist
             if similarity < threshold:
                 continue

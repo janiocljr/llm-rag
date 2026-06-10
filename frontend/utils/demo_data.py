@@ -1,4 +1,3 @@
-"""Offline demo fixtures — used when demo_mode=True."""
 from __future__ import annotations
 
 DEMO_STATS: dict = {

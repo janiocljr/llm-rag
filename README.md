@@ -1,11 +1,11 @@
 # rag-chat-llm
 
-**Sistema RAG (Retrieval-Augmented Generation) offline** para consulta inteligente de documentos PDF via linguagem natural, com extração robusta de tabelas, embeddings locais e resposta contextual.
+**Sistema RAG (Retrieval-Augmented Generation) 100% offline** para consulta inteligente de documentos PDF via linguagem natural, com extração robusta de tabelas, embeddings locais e respostas contextuais com citação de fonte.
 
 [![Status](https://img.shields.io/badge/Status-Production%20Ready-green)]()
-[![Python](https://img.shields.io/badge/Python-3.10+-blue)]()
+[![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
+[![License](https://img.shields.io/badge/License-MIT-lightgrey)]()
 [![Tests](https://img.shields.io/badge/Tests-109%2F109%20passing-brightgreen)]()
-[![Coverage](https://img.shields.io/badge/Coverage-100%25%20core%20modules-brightgreen)]()
 
 ---
 
@@ -21,50 +21,60 @@
 8. [Uso](#uso)
 9. [Configuração](#configuração)
 10. [Testes](#testes)
-11. [Documentação](#documentação)
+11. [Documentação Técnica](#documentação-técnica)
 12. [Troubleshooting](#troubleshooting)
+13. [Dependências Principais](#dependências-principais)
+14. [Contato](#contato)
 
 ---
 
 ## 🎯 Visão Geral
 
-Um sistema RAG completo e offline que permite:
+Sistema RAG completo e offline que permite consultar documentos PDF através de linguagem natural. Toda inferência é local — sem envio de dados para APIs externas.
 
-- **Ingestão de PDFs**: Extração inteligente de texto e tabelas usando `pdfplumber` + `Camelot`
-- **Processamento de texto**: Chunking token-aware com sobreposição semântica
-- **Embeddings locais**: Modelo multilíngue `BAAI/bge-m3` (1024-dim)
-- **Busca semântica**: Índice FAISS com `IndexFlatIP` (busca exata)
-- **Re-ranking inteligente**: MMR (Maximal Marginal Relevance) para diversidade
-- **Resposta contextual**: LLM local `Mistral 7B` com citações de fonte
-- **100% Offline**: Zero dependência de APIs externas
+**Componentes principais:**
+
+| Camada | Tecnologia | Detalhe |
+|--------|-----------|---------|
+| Extração de texto | `pdfplumber` + `Camelot` | Texto e tabelas de PDFs |
+| Embeddings | `intfloat/multilingual-e5-small` | 384-dim, multilíngue |
+| Índice vetorial | FAISS `IndexFlatIP` | Busca exata por similaridade |
+| Re-ranking | MMR (λ = 0.6) | Diversidade nos resultados |
+| LLM | `Qwen2.5-7B-Instruct` Q4\_K\_M | Inferência local via llama-cpp |
+| Frontend | Streamlit | Interface web interativa |
+| Backend | FastAPI + SSE | API REST com streaming |
 
 ---
 
 ## ✨ Características
 
-### Extração Inteligente de Tabelas
-- ✅ **Camelot** com fallback automático (lattice → stream → pdfplumber)
-- ✅ **Persistência em CSV**: Tabelas salvas em `backend/data/index/tables/`
-- ✅ **Detecção de headers/footers**: Remoção automática de conteúdo desnecessário
-- ✅ **Metadata enriched**: Chunks com `is_table=true` e caminho do CSV
+### Extração Inteligente de PDFs
+- **Camelot** com fallback automático: lattice → stream → pdfplumber
+- **Separação de notas de rodapé**: cada nota gera um chunk dedicado para preservar fatos numéricos
+- **Detecção de headers/footers**: remoção automática de conteúdo repetitivo
+- **Exportação de tabelas em CSV**: salvas em `backend/data/index/tables/`
 
 ### Chunking Token-Aware
-- ✅ **Recursive character splitter**: Respeita limites de tokens
-- ✅ **Separadores semânticos**: Parágrafos → sentenças → palavras
-- ✅ **Overlapping**: 64 tokens de sobreposição para continuidade
-- ✅ **Page boundaries**: Chunks respeitam limites de página para citações precisas
+- **Recursive character splitter**: respeita limites semânticos (parágrafos → sentenças → palavras)
+- **Semantic paragraph chunker**: agrupa parágrafos por importância estrutural
+- **Overlap de 50 tokens**: evita perda de informação nas bordas dos chunks
+- **Page-aware**: chunks nunca cruzam limites de página — citações sempre precisas
 
-### Busca e Ranking
-- ✅ **Top-K retrieval**: Recupera 5 chunks similares por padrão
-- ✅ **Similarity threshold**: Filtra por relevância (default 0.35)
-- ✅ **MMR re-ranking**: λ=0.6 para balancear relevância vs. diversidade
-- ✅ **Final K selection**: Injeta apenas 3 chunks no prompt do LLM
+### Recuperação e Re-ranking
+- **Top-K retrieval**: recupera os 10 chunks mais similares
+- **Threshold de similaridade**: filtra chunks com score < 0.45
+- **MMR re-ranking**: injeta os 5 melhores chunks balanceando relevância e diversidade
+- **SSE streaming**: resposta transmitida token a token para o frontend
 
-### Código Profissional
-- ✅ **Type hints completos**: Todos os módulos com annotations
-- ✅ **Docstrings detalhadas**: Documentação nas funções e classes
-- ✅ **109 testes unitários**: 100% de cobertura em módulos core
-- ✅ **Zero comentários inline**: Código auto-documentado
+### Aceleração por Hardware
+- **Apple Silicon (MPS)**: `LLM_N_GPU_LAYERS=-1` ativa Metal GPU para inferência (~30× vs. CPU)
+- **Embeddings em MPS**: `EMBEDDING_DEVICE=mps` processa vetores na GPU unificada
+- **CPU fallback**: configurável via `LLM_N_GPU_LAYERS=0` para x86/Linux
+
+### Qualidade de Código
+- **Type hints** completos em todos os módulos
+- **109 testes unitários** com ≥ 90% de cobertura nos módulos core
+- **Código limpo**: zero comentários inline, zero docstrings — auto-documentado por nomes
 
 ---
 
@@ -76,43 +86,48 @@ Um sistema RAG completo e offline que permite:
 |---------|--------|-------------|
 | **RAM** | 8 GB | 16 GB |
 | **CPU** | 4 cores | 8+ cores |
-| **Disco** | 8 GB livres | 15 GB |
+| **Disco** | 10 GB livres | 15 GB |
+| **GPU** | Opcional | Apple M1/M2/M3 (MPS) |
+
+> **Nota Apple Silicon**: com `LLM_N_GPU_LAYERS=-1` e `EMBEDDING_DEVICE=mps` a inferência utiliza a GPU unificada do chip, reduzindo o tempo de resposta em ~30× em relação à execução exclusiva em CPU.
 
 ### Software
 
-- **macOS 11+** ou **Linux** (Ubuntu 20.04+)
+- **macOS 12+** ou **Linux** (Ubuntu 20.04+)
 - **Python 3.10 — 3.12** (3.13+ não testado)
-- **Ghostscript** (para Camelot; instalado automaticamente via Conda/Homebrew)
+- **Ghostscript** (para Camelot; instalado via Conda/Homebrew)
 - **Conda/Miniforge** (recomendado) ou **venv** local
 
 ---
 
 ## 🚀 Instalação
 
-### Opção 1: Conda (Recomendado - macOS/Linux)
+### Opção 1: Conda (Recomendado — macOS/Linux)
 
 ```bash
 # Clone o repositório
 git clone <REPO_URL>
 cd llm-rag
 
-# Instale Miniforge e crie o ambiente (macOS)
+# Instale Miniforge e crie o ambiente
 bash scripts/setup_backend_mac.sh
 
-# Ative o conda
+# Ative o ambiente
 eval "$($HOME/miniforge3/bin/conda shell.zsh hook)"  # zsh
-# ou para bash:
-eval "$($HOME/miniforge3/bin/conda shell.bash hook)"
-
+# ou:
+eval "$($HOME/miniforge3/bin/conda shell.bash hook)"  # bash
 conda activate rag
 
-# Instale o modelo LLM (~4.1 GB)
-mkdir -p backend/models
-# Baixe de: https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF
-# E coloque em backend/models/mistral-7b-instruct-v0.2.Q4_K_M.gguf
+# Baixe o modelo LLM (~4.7 GB)
+cd backend
+python scripts/download_model.py
+
+# Baixe o modelo de embeddings (~118 MB)
+python scripts/download_embeddings.py
 
 # Inicie a aplicação
-python3 start.py --no-ingest
+cd ..
+python3 start.py
 ```
 
 ### Opção 2: venv Local
@@ -120,8 +135,9 @@ python3 start.py --no-ingest
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install --upgrade pip setuptools wheel
-python3 start.py --no-ingest
+pip install --upgrade pip setuptools wheel
+pip install -r backend/requirements.txt
+python3 start.py
 ```
 
 ### Opção 3: Docker
@@ -135,26 +151,27 @@ docker compose up --build
 
 ## ⚡ Quick Start
 
-**Após instalação, execute em ~5 minutos:**
-
 ```bash
 # 1. Adicione seus PDFs
 mkdir -p backend/data/pdfs
 cp /caminho/para/seus/documentos/*.pdf backend/data/pdfs/
 
-# 2. Inicie o sistema
+# 2. Inicie o sistema (indexação automática na primeira execução)
 python3 start.py
 
-# 3. Abra no navegador
-# Chat: http://localhost:8501
-# API Docs: http://localhost:8000/docs
+# 3. Acesse no navegador
+#    Chat:        http://localhost:8501
+#    API Docs:    http://localhost:8000/docs
 ```
 
-**URLs importantes:**
-- 🎨 **Frontend (Streamlit)**: `http://localhost:8501`
-- 🔌 **API (FastAPI)**: `http://localhost:8000`
-- 📚 **Swagger Docs**: `http://localhost:8000/docs`
-- ⚙️ **ReDoc**: `http://localhost:8000/redoc`
+**URLs disponíveis:**
+
+| Serviço | URL |
+|---------|-----|
+| Frontend (Streamlit) | `http://localhost:8501` |
+| API (FastAPI) | `http://localhost:8000` |
+| Swagger UI | `http://localhost:8000/docs` |
+| ReDoc | `http://localhost:8000/redoc` |
 
 ---
 
@@ -162,68 +179,85 @@ python3 start.py
 
 ```
 llm-rag/
-├── README.md                     # Este arquivo
-├── pyproject.toml               # Configuração build + dependências
-├── start.py                     # Launcher (Conda/venv auto-detection)
+├── README.md
+├── pyproject.toml               # Build config + dependências
+├── start.py                     # Launcher (auto-detecta Conda/venv)
 ├── environment.yml              # Conda environment (Python 3.11)
 │
 ├── backend/
+│   ├── .env                     # Configuração de runtime
 │   ├── app/
-│   │   ├── main.py             # FastAPI app entrypoint
+│   │   ├── main.py              # FastAPI app + lifespan
 │   │   ├── api/
-│   │   │   ├── routes.py       # /query, /ingest, /stats, /health
-│   │   │   └── memory_routes.py # Memory management (optional)
+│   │   │   ├── routes.py        # /query, /query/stream, /ingest, /stats
+│   │   │   └── memory_routes.py # Rotas de memória persistente (opcional)
 │   │   ├── core/
-│   │   │   ├── config.py       # Settings (Pydantic)
-│   │   │   ├── ingestion.py    # PDFIngester + RecursiveCharSplitter
-│   │   │   ├── embedder.py     # BAAI/bge-m3 wrapper
-│   │   │   ├── vector_store.py # FAISS IndexFlatIP
-│   │   │   ├── llm.py          # Mistral 7B via llama-cpp-python
-│   │   │   ├── pipeline.py     # RAGPipeline orchestrator
-│   │   │   └── text_utils.py   # Utilities (clean_text, estimate_tokens)
+│   │   │   ├── config.py        # Settings via Pydantic (lê .env)
+│   │   │   ├── ingestion.py     # PDFIngester + RecursiveCharSplitter
+│   │   │   ├── advanced_ingestion.py  # Chunking semântico, detecção H/F
+│   │   │   ├── embedder.py      # multilingual-e5-small wrapper
+│   │   │   ├── vector_store.py  # FAISS IndexFlatIP + MMR
+│   │   │   ├── llm.py           # Qwen2.5-7B via llama-cpp-python
+│   │   │   ├── pipeline.py      # RAGPipeline (orquestrador)
+│   │   │   ├── text_utils.py    # clean_text, estimate_tokens
+│   │   │   ├── chroma_store.py  # ChromaDB (opcional)
+│   │   │   ├── memory.py        # MemoryOrchestrator (opcional)
+│   │   │   └── mongo_store.py   # MongoDB (opcional)
 │   │   ├── models/
-│   │   │   └── schemas.py      # Pydantic models (Request/Response)
+│   │   │   └── schemas.py       # Pydantic models (Request/Response)
 │   │   └── utils/
-│   │       ├── logging.py      # Log configuration
-│   │       └── text.py         # Text utilities
+│   │       ├── logging.py       # Configuração de logging
+│   │       └── text.py          # Utilitários de texto
+│   ├── scripts/
+│   │   ├── download_model.py        # Baixa modelos LLM GGUF
+│   │   ├── download_embeddings.py   # Baixa modelos de embeddings
+│   │   ├── ensure_models.py         # Verifica cache antes do startup
+│   │   ├── reindex_pdfs.py          # Reindexação forçada
+│   │   ├── analyze_embeddings.py    # Análise comparativa de modelos
+│   │   └── plot_embedding_analysis.py
 │   ├── tests/
-│   │   ├── conftest.py         # Pytest fixtures
-│   │   ├── test_config.py      # 32 tests, 100% coverage
-│   │   ├── test_embedder.py    # 13 tests, 100% coverage
-│   │   ├── test_schemas.py     # 20 tests, 100% coverage
-│   │   ├── test_text_utils.py  # 24 tests, 100% coverage
-│   │   ├── test_ingestion.py   # 20 tests
-│   │   └── test_rag_system.py  # Integration tests
-│   ├── requirements.txt         # Dependencies
-│   ├── Dockerfile             # Docker image
-│   └── docker-compose.yml      # Docker services
+│   │   ├── conftest.py
+│   │   ├── test_config.py
+│   │   ├── test_embedder.py
+│   │   ├── test_ingestion.py
+│   │   ├── test_schemas.py
+│   │   ├── test_table_extraction.py
+│   │   ├── test_text_utils.py
+│   │   ├── test_utils.py
+│   │   └── test_rag_system.py
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── docker-compose.yml
 │
 ├── frontend/
-│   ├── rag_chat.py            # Streamlit main app
-│   ├── components/            # UI components
-│   │   ├── chat.py
-│   │   ├── sidebar.py
-│   │   ├── diagram.py
-│   │   └── ...
+│   ├── rag_chat.py              # Streamlit main app
+│   ├── components/
+│   │   ├── chat.py              # Componente de chat
+│   │   ├── sidebar.py           # Painel de configuração
+│   │   ├── diagram.py           # Visualização da arquitetura
+│   │   ├── prompt_viewer.py     # Visualizador do prompt enviado ao LLM
+│   │   └── thinking.py          # Indicador de carregamento
 │   └── utils/
-│       ├── api_client.py      # Backend connector
-│       ├── formatting.py      # Text formatting
-│       └── demo_data.py       # Sample data
+│       ├── api_client.py        # Conector HTTP/SSE com o backend
+│       ├── formatting.py        # Formatação de texto
+│       └── demo_data.py         # Dados de exemplo
 │
-├── integrations/              # Optional integrations
-│   ├── chroma_store.py       # ChromaDB (optional)
-│   ├── mongo_store.py        # MongoDB (optional)
-│   ├── memory.py             # Memory management
-│   └── ...
+├── integrations/                # Integrações opcionais
+│   ├── chroma_store.py          # ChromaDB
+│   ├── mongo_store.py           # MongoDB
+│   ├── memory.py
+│   ├── memory_routes.py
+│   ├── pipeline.py
+│   ├── config.py
+│   └── main.py
 │
-├── docs/                      # Professional documentation
-│   ├── README.md             # Documentation hub
-│   ├── ARCHITECTURE.md       # System design (10+ Mermaid diagrams)
-│   ├── COMPONENTS.md         # Component details
-│   └── DATA_FLOWS.md         # End-to-end flows
+├── docs/
+│   ├── ARCHITECTURE.md          # Diagramas Mermaid da arquitetura
+│   ├── COMPONENTS.md            # Detalhes de cada componente
+│   └── DATA_FLOWS.md            # Fluxos de dados end-to-end
 │
 └── scripts/
-    └── setup_backend_mac.sh   # Conda setup for macOS
+    └── setup_backend_mac.sh     # Setup Conda para macOS
 ```
 
 ---
@@ -233,67 +267,69 @@ llm-rag/
 ### Visão de Alto Nível
 
 ```
-User Browser (Streamlit)
-        ↓
-   API Client (HTTP/SSE)
-        ↓
- FastAPI Backend
-        ↓
- RAG Pipeline
-  ├─ PDFIngester (pdfplumber + Camelot)
-  ├─ Embedder (BAAI/bge-m3, 1024-dim)
-  ├─ VectorStore (FAISS IndexFlatIP)
-  ├─ MMR Re-ranker
-  └─ LLM (Mistral 7B GGUF)
-        ↓
-  Persistent Storage
-  ├─ FAISS index
-  ├─ Metadata JSON
-  ├─ CSV tables
-  └─ Models directory
+Usuário (Navegador)
+        │
+   Streamlit Frontend
+        │  HTTP / SSE
+   FastAPI Backend
+        │
+   RAGPipeline
+   ├── PDFIngester       ← pdfplumber + Camelot
+   ├── Embedder          ← intfloat/multilingual-e5-small (384-dim)
+   ├── VectorStore       ← FAISS IndexFlatIP
+   ├── MMR Re-ranker     ← λ = 0.6
+   └── LLM               ← Qwen2.5-7B-Instruct Q4_K_M (llama-cpp)
+        │
+   Armazenamento Local
+   ├── faiss.index
+   ├── metadata.json
+   ├── tables/ (CSV)
+   └── models/ (GGUF)
 ```
 
-### Pipeline de Query
+### Pipeline de Consulta (Query)
 
 ```
-User Question
-    ↓
-Embed Query (bge-m3)
-    ↓
-FAISS Search (top-5)
-    ↓
-Filter by Threshold (0.35)
-    ↓
-MMR Re-rank (λ=0.6)
-    ↓
-Build Prompt (system + context + question)
-    ↓
-Generate with LLM (Mistral)
-    ↓
-Stream Response to User
+Pergunta do Usuário
+        │
+Embed Query (multilingual-e5-small)
+        │
+FAISS Search — top-10 candidatos
+        │
+Filtro por Threshold (≥ 0.45)
+        │
+MMR Re-rank (λ = 0.6) → top-5 chunks
+        │
+Build Prompt (system + contexto + pergunta)
+        │
+Qwen2.5-7B generate (stream token-a-token)
+        │
+SSE → Frontend → Usuário
 ```
 
 ### Pipeline de Ingestão
 
 ```
-PDF Files
-    ↓
-Load & Extract (pdfplumber)
-    ↓
-Extract Tables (Camelot lattice → stream → pdfplumber)
-    ↓
-Clean Text (Unicode normalization, remove headers/footers)
-    ↓
-Chunk (RecursiveCharSplitter, token-aware)
-    ↓
-Embed Chunks (bge-m3, batch processing)
-    ↓
-FAISS Index (IndexFlatIP)
-    ↓
-Persist (index + metadata + tables)
+Arquivos PDF (backend/data/pdfs/)
+        │
+pdfplumber — extração página a página
+        │
+Camelot — detecção de tabelas (lattice → stream → fallback)
+        │
+Remoção de headers/footers + extração de notas de rodapé
+        │
+clean_text — normalização Unicode, colapso de espaços
+        │
+SemanticParagraphChunker / RecursiveCharSplitter
+        │
+Embed chunks (multilingual-e5-small, batch=32, MPS)
+        │
+FAISS IndexFlatIP — adição de vetores
+        │
+Persistência (faiss.index + metadata.json + tables/*.csv)
 ```
 
-**Para diagrama completo, veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
+> Para diagramas completos com sequências e class diagrams, veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -301,104 +337,111 @@ Persist (index + metadata + tables)
 
 ### Via Frontend (Streamlit)
 
-```bash
-# Acesse http://localhost:8501
-# 1. Adicione PDFs via sidebar
-# 2. Digite sua pergunta
-# 3. Veja respostas com citações
-```
+1. Acesse `http://localhost:8501`
+2. Use o painel lateral para ajustar `top_k`, `threshold` e `final_k`
+3. Digite sua pergunta e visualize a resposta com chunks recuperados e prompt completo
 
-### Via API (cURL)
+### Via API REST (cURL)
 
 ```bash
-# Query
+# Consulta simples (resposta completa)
 curl -X POST http://localhost:8000/api/v1/query \
   -H "Content-Type: application/json" \
-  -d '{"question": "Qual é o tema principal?"}'
+  -d '{"question": "Qual é o tema principal do documento?"}'
 
-# Ingest
+# Consulta com streaming SSE
+curl -N http://localhost:8000/api/v1/query/stream \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Qual foi a inflação em 2024?"}'
+
+# Reindexar PDFs
 curl -X POST http://localhost:8000/api/v1/ingest \
   -H "Content-Type: application/json" \
-  -d '{"force_reindex": false}'
+  -d '{"force_reindex": true}'
 
-# Stats
+# Status do índice
 curl http://localhost:8000/api/v1/stats
 
 # Health check
 curl http://localhost:8000/health
 ```
 
-### Via Python SDK
+### Via Python
 
 ```python
-from app.core.ingestion import PDFIngester
 from app.core.pipeline import RAGPipeline
 from app.core.config import settings
-from pathlib import Path
+from app.models.schemas import QueryRequest
 
 pipeline = RAGPipeline(settings)
 
+# Indexar PDFs (pula se o índice já existe)
 pipeline.ingest(force_reindex=False)
 
-response = pipeline.query(question="What is the main topic?")
+# Consultar
+request = QueryRequest(question="Qual é o tema principal?")
+response = pipeline.query(request)
+
 print(response.answer)
-print(response.found_in_documents)
+print(f"Encontrado nos documentos: {response.found_in_documents}")
+print(f"Latência: {response.latency_ms:.0f} ms")
+
 for chunk in response.retrieved_chunks:
-    print(f"[{chunk.citation}] {chunk.text}")
+    print(f"[{chunk.citation}] score={chunk.score:.3f}")
+    print(chunk.text[:200])
 ```
 
 ---
 
 ## ⚙️ Configuração
 
-Defina em `backend/.env` ou variáveis de ambiente:
+Todas as variáveis são definidas em `backend/.env`. Valores abaixo refletem a configuração de referência:
 
 ```bash
-# Paths
-DATA_DIR=backend/data/pdfs          # Pasta com PDFs
-INDEX_DIR=backend/data/index        # Índice persistido
-MODEL_DIR=backend/models            # Modelos GGUF
+# Diretórios
+DATA_DIR=data/pdfs          # PDFs de entrada
+INDEX_DIR=data/index        # Índice FAISS persistido
+MODEL_DIR=models            # Modelos GGUF
 
 # Chunking
-CHUNK_SIZE=512                      # Tokens por chunk
-CHUNK_OVERLAP=64                    # Tokens overlap
+CHUNK_SIZE=300              # Tokens máximos por chunk
+CHUNK_OVERLAP=50            # Tokens de sobreposição
 
 # Embeddings
-EMBEDDING_MODEL=BAAI/bge-m3         # Model ID
-EMBEDDING_DIM=1024                  # Dimensionalidade
-EMBEDDING_BATCH_SIZE=128            # Batch size
+EMBEDDING_MODEL=intfloat/multilingual-e5-small
+EMBEDDING_DIM=384
+EMBEDDING_BATCH_SIZE=32
+EMBEDDING_DEVICE=mps        # mps (Apple Silicon) | cuda | cpu
 
-# Retrieval
-RETRIEVAL_TOP_K=5                   # Chunks recuperados
-RETRIEVAL_FINAL_K=3                 # Chunks no prompt
-SIMILARITY_THRESHOLD=0.35           # Score mínimo
-MMR_LAMBDA=0.6                      # Balance relevância/diversidade
+# Recuperação
+RETRIEVAL_TOP_K=10          # Candidatos recuperados do FAISS
+RETRIEVAL_FINAL_K=5         # Chunks injetados no prompt após MMR
+SIMILARITY_THRESHOLD=0.45   # Score mínimo de similaridade (0–1)
+MMR_LAMBDA=0.6              # 1.0 = só relevância, 0.0 = só diversidade
 
 # LLM
-LLM_MODEL_PATH=models/mistral-7b-instruct-v0.2.Q4_K_M.gguf
-LLM_CONTEXT_LENGTH=4096             # Context window
-LLM_MAX_NEW_TOKENS=512              # Max output
-LLM_TEMPERATURE=0.1                 # Deterministic
-LLM_N_GPU_LAYERS=0                  # GPU layers (0=CPU)
-LLM_N_THREADS=8                     # CPU threads
+LLM_MODEL_PATH=models/qwen2.5-7b-instruct-q4_k_m.gguf
+LLM_CONTEXT_LENGTH=4096
+LLM_MAX_NEW_TOKENS=512
+LLM_TEMPERATURE=0.1
+LLM_N_GPU_LAYERS=-1         # -1 = todas as camadas na GPU (MPS/CUDA) | 0 = CPU
+LLM_N_THREADS=12            # Threads de CPU (usado quando GPU parcial ou ausente)
 
-# Optional
-USE_CHROMA=false                    # ChromaDB (optional)
-MONGO_URI=mongodb://...             # MongoDB (optional)
+# Integrações opcionais
+USE_CHROMA=false
+MONGO_URI=mongodb://ragadmin:ragpassword@localhost:27017/rag_knowledge?authSource=admin
 ```
+
+> **Ajuste de threshold**: valores entre `0.40` e `0.55` são recomendados para documentos de domínio específico. Thresholds muito baixos aumentam recall mas introduzem ruído; muito altos podem retornar "Não encontrei" para perguntas legítimas.
 
 ---
 
 ## 🧪 Testes
 
-### Executar Testes
-
 ```bash
 # Todos os testes
 PYTHONPATH=./backend python -m pytest backend/tests/ -v
-
-# Apenas testes unitários
-PYTHONPATH=./backend python -m pytest backend/tests/ -v -m unit
 
 # Com cobertura
 PYTHONPATH=./backend python -m pytest backend/tests/ \
@@ -406,158 +449,142 @@ PYTHONPATH=./backend python -m pytest backend/tests/ \
   --cov-report=html \
   --cov-report=term-missing
 
-# Testes específicos
+# Módulo específico
 PYTHONPATH=./backend python -m pytest backend/tests/test_config.py -v
 ```
 
-### Resultado Esperado
+### Resultado esperado
 
 ```
 ✅ 109 testes passando
-✅ 100% de cobertura em módulos core:
-   - app/core/config.py: 100%
-   - app/core/embedder.py: 100%
-   - app/core/text_utils.py: 100%
-   - app/models/schemas.py: 100%
-   - app/core/ingestion.py: 90%+ (testes completos)
+✅ Cobertura ≥ 90% nos módulos core:
+   - app/core/config.py       100%
+   - app/core/text_utils.py   100%
+   - app/models/schemas.py    100%
+   - app/core/embedder.py     100%
+   - app/core/ingestion.py     90%+
 ```
 
 ---
 
-## 📚 Documentação
+## 📚 Documentação Técnica
 
-### Documentação Técnica
-
-**Todos os diagramas em Mermaid, renderizáveis no GitHub/GitLab:**
-
-- 📐 **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**
-  - Visão de 3 camadas (Client/Frontend/Backend)
-  - Arquitetura de componentes
-  - Pipeline de query (sequence diagram)
-  - Pipeline de ingestão (flowchart)
-  - Estrutura do backend (class diagrams)
-  - 10+ diagramas Mermaid
-
-- 🔧 **[docs/COMPONENTS.md](docs/COMPONENTS.md)**
-  - Detalhes de cada componente
-  - Schemas Pydantic
-  - Endpoints da API
-  - Interações entre componentes
-  - 5+ diagramas
-
-- 🔄 **[docs/DATA_FLOWS.md](docs/DATA_FLOWS.md)**
-  - Query flow detalhado (sequence diagram)
-  - Ingest flow completo (flowchart)
-  - Data structures
-  - Error handling
-  - Performance timelines
-  - 8+ diagramas
-
-### Guias de Configuração
-
-- [README-SETUP.md](README-SETUP.md) — Setup detalhado para macOS
-- [environment.yml](environment.yml) — Conda environment
-- [pyproject.toml](pyproject.toml) — Build config + dependencies
-
----
-
-## 📊 Status do Projeto
-
-| Componente | Status | Cobertura |
-|-----------|--------|-----------|
-| **Backend** | ✅ Production-Ready | 100% core |
-| **Frontend** | ✅ Functional | N/A |
-| **Testes** | ✅ Comprehensive | 109/109 passing |
-| **Documentação** | ✅ Complete | 23+ diagramas |
-| **Camelot** | ✅ Robust | Fallback automático |
-| **Type Safety** | ✅ Full | Type hints everywhere |
+| Documento | Conteúdo |
+|-----------|---------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Arquitetura em 3 camadas, diagramas Mermaid de componentes e sequências |
+| [docs/COMPONENTS.md](docs/COMPONENTS.md) | Detalhes de PDFIngester, Embedder, VectorStore, LLM, RAGPipeline |
+| [docs/DATA_FLOWS.md](docs/DATA_FLOWS.md) | Fluxos end-to-end de query e ingestão, timelines de performance |
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Porta Ocupada (8000/8501)
+### Porta já em uso (8000 / 8501)
 
 ```bash
-lsof -ti:8000 | xargs kill -9  # Kill backend
-lsof -ti:8501 | xargs kill -9  # Kill frontend
+lsof -ti:8000 | xargs kill -9
+lsof -ti:8501 | xargs kill -9
 ```
 
-### Conda Não Encontrado
+### Conda não encontrado
 
 ```bash
-# Ative o hook do conda
 eval "$($HOME/miniforge3/bin/conda shell.zsh hook)"
-
-# Ou use conda run
-$HOME/miniforge3/bin/conda run -n rag python3 start.py
+conda activate rag
 ```
 
-### NumPy Falhando em macOS
+### Modelo LLM não encontrado
 
 ```bash
-# Use Conda em vez de venv
+# Baixe o Qwen2.5-7B (~4.7 GB)
+cd backend
+python scripts/download_model.py --model qwen2.5-7b
+
+# Verifique o caminho configurado em .env
+grep LLM_MODEL_PATH .env
+```
+
+### Modelo de embeddings não encontrado
+
+```bash
+cd backend
+python scripts/download_embeddings.py --model multilingual-e5-small
+```
+
+### Índice FAISS corrompido ou desatualizado
+
+```bash
+rm -rf backend/data/index
+python3 start.py   # Reindexação automática
+```
+
+### MPS não ativado (macOS)
+
+```bash
+# Verifique suporte MPS
+python3 -c "import torch; print(torch.backends.mps.is_available())"
+
+# Se True, configure em backend/.env:
+# LLM_N_GPU_LAYERS=-1
+# EMBEDDING_DEVICE=mps
+```
+
+### NumPy / FAISS falhando em macOS
+
+```bash
+# Use Conda em vez de pip/venv puro
 bash scripts/setup_backend_mac.sh
 ```
 
-### Modelo LLM Não Encontrado
+### Respostas "Não encontrei essa informação" em excesso
+
+Ajuste os parâmetros de recuperação em `backend/.env`:
 
 ```bash
-# Verifique o caminho configurado
-echo $LLM_MODEL_PATH
-
-# Baixe de: https://huggingface.co/TheBloke/Mistral-7B-Instruct-v0.2-GGUF
-mkdir -p backend/models
-# Coloque o arquivo .gguf em backend/models/
+SIMILARITY_THRESHOLD=0.40   # Reduza o threshold (mais recall)
+RETRIEVAL_TOP_K=15          # Aumente os candidatos
+RETRIEVAL_FINAL_K=7         # Mais chunks no contexto do LLM
 ```
-
-### FAISS Index Corrompido
-
-```bash
-# Delete e reindexe
-rm -rf backend/data/index
-python3 start.py  # Reconstrói o índice
-```
-
----
-
-## 🚀 Próximos Passos
-
-1. **Personalize o system prompt** em `backend/app/core/pipeline.py`
-2. **Adicione seus PDFs** em `backend/data/pdfs/`
-3. **Explore os documentos técnicos** em `docs/` para entender a arquitetura
-4. **Customize retrieval parameters** em `backend/.env` conforme necessário
-
----
-
-## 📖 Referências Adicionais
-
-- [Arquitetura do Sistema](docs/ARCHITECTURE.md) — 10+ diagramas Mermaid, arquitetura de 3 camadas
-- [Componentes](docs/COMPONENTS.md) — Detalhes de PDFIngester, Embedder, VectorStore, LLM, RAGPipeline
-- [Fluxos de Dados](docs/DATA_FLOWS.md) — Flows end-to-end de query e ingestão, timelines de performance
 
 ---
 
 ## 📦 Dependências Principais
 
-| Componente | Pacote | Versão | Propósito |
-|-----------|--------|--------|----------|
-| **Text Extraction** | pdfplumber | 0.11+ | Extração de texto de PDFs |
-| **Table Extraction** | camelot-py[cv] | 0.12+ | Extração inteligente de tabelas |
-| **Embeddings** | sentence-transformers | 3.0+ | BAAI/bge-m3 (1024-dim) |
-| **Vector DB** | faiss-cpu | 1.8+ | Indexação e busca semântica |
-| **LLM** | llama-cpp-python | 0.3+ | Mistral 7B GGUF inference |
-| **Backend** | FastAPI | 0.110+ | API HTTP |
-| **Frontend** | Streamlit | 1.40+ | Interface web |
-| **Utilities** | pydantic | 2.0+ | Validação de schemas |
-
-
-## ✉️ Contato
-
-- **Autores**: Janio Lima / Arthur Damiao / Luis Felipe Rudnik / Gabryel Zanella
+| Categoria | Pacote | Versão | Função |
+|-----------|--------|--------|--------|
+| Extração de texto | `pdfplumber` | 0.11+ | Extração de texto de PDFs |
+| Extração de tabelas | `camelot-py[cv]` | 0.10+ | Detecção e extração de tabelas |
+| Embeddings | `sentence-transformers` | 3.0+ | `multilingual-e5-small` (384-dim) |
+| Índice vetorial | `faiss-cpu` | 1.8+ | IndexFlatIP — busca exata |
+| LLM local | `llama-cpp-python` | 0.2.85+ | Qwen2.5-7B GGUF inference |
+| Backend | `fastapi` | 0.115+ | API REST + SSE streaming |
+| Frontend | `streamlit` | 1.40+ | Interface web interativa |
+| Validação | `pydantic` | 2.7+ | Schemas de request/response |
+| Configuração | `pydantic-settings` | 2.3+ | Leitura de variáveis de ambiente |
+| Dados tabulares | `pandas` | 2.2+ | Formatação de tabelas extraídas |
 
 ---
 
-**Status**: Production-Ready ✅  
-**Última atualização**: Junho 2026  
-**Versão**: 1.0.0
+## 📊 Status do Projeto
+
+| Componente | Status |
+|-----------|--------|
+| Backend (FastAPI + RAG Pipeline) | ✅ Production-Ready |
+| Frontend (Streamlit + SSE) | ✅ Funcional |
+| Extração de tabelas (Camelot) | ✅ Com fallback automático |
+| Aceleração MPS (Apple Silicon) | ✅ Ativada |
+| Testes unitários | ✅ 109/109 passing |
+| Documentação técnica | ✅ 20+ diagramas Mermaid |
+| Integrações ChromaDB/MongoDB | ⚙️ Opcionais (desativadas por padrão) |
+
+---
+
+## ✉️ Contato
+
+**Autores:** Janio Lima · Arthur Damiao · Luis Felipe Rudnik · Gabryel Zanella
+
+---
+
+**Licença:** MIT  
+**Versão:** 1.0.0  
+**Última atualização:** Junho 2026

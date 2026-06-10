@@ -1,11 +1,6 @@
-"""
-Embedding module for semantic text representation.
-
-This module provides sentence embeddings using HuggingFace models
-(primarily BAAI/bge-m3 for multilingual support).
-"""
-
 import logging
+import os
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -21,7 +16,6 @@ _DOCUMENT_PREFIX = "search_document: "
 
 
 def _resolve_device(device: str) -> str:
-    """Resolve 'auto' to the best available device."""
     if device != "auto":
         return device
     if torch.backends.mps.is_available():
@@ -31,73 +25,53 @@ def _resolve_device(device: str) -> str:
     return "cpu"
 
 
+def _setup_hf_env() -> None:
+    hf_home = Path.home() / ".cache" / "huggingface"
+    cache_dir = hf_home / "hub"
+
+    os.environ.setdefault("HF_HOME", str(hf_home))
+    os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+
+    if "HF_HUB_OFFLINE" not in os.environ and "REQUESTS_CA_BUNDLE" not in os.environ:
+        has_cached_models = cache_dir.exists() and any(cache_dir.glob("models--*"))
+        if has_cached_models:
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            os.environ["TRANSFORMERS_OFFLINE"] = "1"
+        else:
+            os.environ["REQUESTS_CA_BUNDLE"] = ""
+            os.environ["CURL_CA_BUNDLE"] = ""
+
+
 class Embedder:
-    """
-    Wraps SentenceTransformer to produce L2-normalized embeddings.
-
-    The same instance handles both document indexing and query encoding
-    to ensure embedding space compatibility.
-    """
-
     def __init__(
         self,
         model_name: str = "BAAI/bge-m3",
         batch_size: int = 64,
         device: str = "auto",
     ) -> None:
-        """Initialize the embedder with a specific model and device.
-
-        Args:
-            model_name: HuggingFace model ID
-            batch_size: Batch size for embedding generation
-            device: Device to use ('auto', 'cpu', 'cuda', 'mps')
-        """
+        _setup_hf_env()
         resolved_device = _resolve_device(device)
         logger.info(f"Loading embedding model: {model_name} (device={resolved_device})")
         self.model_name = model_name
         self.batch_size = batch_size
 
-        self._model = SentenceTransformer(
-            model_name,
-            device=resolved_device,
-        )
+        try:
+            self._model = SentenceTransformer(model_name, device=resolved_device)
+        except Exception:
+            logger.exception("Failed to load embedding model")
+            raise
+
         self.dim: int = self._model.get_sentence_embedding_dimension()
         logger.info(f"Embedding model ready — dim={self.dim}, device={resolved_device}")
 
-
     def embed_documents(self, chunks: list[DocumentChunk]) -> np.ndarray:
-        """
-        Embed document chunks.
-
-        Args:
-            chunks: List of DocumentChunk objects
-
-        Returns:
-            Float32 array of shape (N, dim), L2-normalized
-        """
         texts = [chunk.text for chunk in chunks]
         return self._encode(texts, is_query=False)
 
     def embed_query(self, query: str) -> np.ndarray:
-        """
-        Embed a query string.
-
-        Args:
-            query: Query text
-
-        Returns:
-            Float32 array of shape (1, dim), L2-normalized
-        """
         return self._encode([query], is_query=True)
 
-
     def _encode(self, texts: list[str], is_query: bool) -> np.ndarray:
-        """
-        Core encoding method.
-
-        is_query=True  → prepend BGE query prefix
-        is_query=False → encode as-is (document mode)
-        """
         if not texts:
             return np.empty((0, self.dim), dtype=np.float32)
 

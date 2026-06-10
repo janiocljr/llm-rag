@@ -13,7 +13,7 @@ from utils.formatting import format_latency
 @dataclass
 class SidebarState:
     api_url: str = "http://localhost:8000"
-    top_k: int = 12
+    top_k: int = 10
     similarity_threshold: float = 0.45
     demo_mode: bool = False
     show_prompt: bool = True
@@ -47,11 +47,17 @@ def render_sidebar() -> SidebarState:
 
 
         st.markdown('<p class="sidebar-section-title">⚙️ Parâmetros de Recuperação</p>', unsafe_allow_html=True)
-        state.top_k = st.slider("Top-K chunks candidatos", min_value=1, max_value=20, value=12)
+        state.top_k = st.slider(
+            "Top-K chunks candidatos",
+            min_value=5, max_value=20, value=10,
+            help="Quantos candidatos buscar antes de re-ranking. Aumentar para mais cobertura, diminuir para mais velocidade."
+        )
         state.similarity_threshold = st.slider(
             "Limiar de similaridade",
-            min_value=0.0, max_value=1.0, value=0.45, step=0.05,
-            help="Score mínimo coseno para um chunk ser incluído na resposta.",
+            min_value=0.20, max_value=0.80, value=0.45, step=0.05,
+            help="Score mínimo coseno. Aumentar para mais precisão (menos ruído), diminuir para mais cobertura "
+                 "(mais chunks, mais contexto). Para e5-small em PT-BR: 0.40-0.50 é o intervalo ideal. "
+                 "Use 0.30 para perguntas amplas, 0.55+ para buscas pontuais.",
         )
 
         st.markdown("---")

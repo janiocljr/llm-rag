@@ -63,6 +63,20 @@ if [[ -z "$(ls -A backend/data/pdfs 2>/dev/null)" ]]; then
   warn "backend/data/pdfs/ está vazio — adicione arquivos PDF antes de ingerir."
 fi
 
+log "Verificando e pre-cachendo modelos de embedding…"
+export HF_HUB_DISABLE_TELEMETRY=1
+(cd "$ROOT_DIR/backend" && "$PYTHON" scripts/ensure_models.py)
+EMBED_OK=$?
+if [[ $EMBED_OK -eq 0 ]]; then
+  export HF_HUB_OFFLINE=1
+  export TRANSFORMERS_OFFLINE=1
+  ok "Modelos em cache — backend iniciará em modo offline"
+else
+  warn "Modelos não verificados — aplicando SSL bypass para o backend"
+  export REQUESTS_CA_BUNDLE=""
+  export CURL_CA_BUNDLE=""
+fi
+
 MODEL_PATH="${LLM_MODEL_PATH:-backend/models/mistral-7b-instruct-v0.2.Q4_K_M.gguf}"
 if [[ ! -f "$MODEL_PATH" ]]; then
   warn "Modelo LLM não encontrado em: $MODEL_PATH"

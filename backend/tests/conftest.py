@@ -1,9 +1,3 @@
-"""
-tests/conftest.py
-=================
-Shared pytest fixtures and configuration for all tests.
-Provides reusable test data, mocks, and settings.
-"""
 from __future__ import annotations
 
 import numpy as np
@@ -54,7 +48,6 @@ def sample_chunks() -> list[Chunk]:
 
 @pytest.fixture
 def sample_vectors(sample_chunks) -> np.ndarray:
-    """Generate normalized random vectors for testing."""
     rng = np.random.default_rng(42)
     dim = 384
     vecs = rng.random((len(sample_chunks), dim)).astype(np.float32)
@@ -64,7 +57,6 @@ def sample_vectors(sample_chunks) -> np.ndarray:
 
 @pytest.fixture
 def sample_text() -> str:
-    """Provide sample text for testing."""
     return """
     # Section 1: Introduction
 
@@ -85,7 +77,6 @@ def sample_text() -> str:
 
 @pytest.fixture
 def mock_embedder():
-    """Provide a mock embedder for testing."""
     rng = np.random.default_rng(42)
     mock = MagicMock()
     mock.embed_query = MagicMock(
@@ -99,7 +90,6 @@ def mock_embedder():
 
 @pytest.fixture
 def mock_llm():
-    """Provide a mock LLM for testing."""
     mock = MagicMock()
     mock.generate = MagicMock(
         return_value="This is a test response from the LLM."
@@ -109,7 +99,6 @@ def mock_llm():
 
 @pytest.fixture
 def temp_pdf_path(tmp_path):
-    """Provide a temporary PDF file path."""
     pdf_path = tmp_path / "test.pdf"
     pdf_path.write_bytes(b"%PDF-1.4\n%Test PDF Content")
     return pdf_path
@@ -117,7 +106,6 @@ def temp_pdf_path(tmp_path):
 
 @pytest.fixture
 def temp_data_dir(tmp_path):
-    """Provide a temporary data directory with proper structure."""
     data_dir = tmp_path / "data"
     (data_dir / "pdfs").mkdir(parents=True)
     (data_dir / "index").mkdir(parents=True)
@@ -126,7 +114,6 @@ def temp_data_dir(tmp_path):
 
 @pytest.fixture
 def sample_text_with_headers() -> str:
-    """Provide sample text with headers and footers."""
     return """
     === CONFIDENTIAL REPORT - PAGE 1 ===
 

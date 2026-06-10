@@ -1,16 +1,3 @@
-"""
-app/core/config.py  —  v3 (ChromaDB + MongoDB)
-===============================================
-Central configuration.  All values can be overridden via environment
-variables or backend/.env.
-
-New in v3
----------
-CHROMA_HOST, CHROMA_PORT, CHROMA_COLLECTION_EMBEDDINGS, CHROMA_COLLECTION_MEMORY
-MONGO_URI, MONGO_DB
-USE_CHROMA  — when True, ChromaDB is the vector store (FAISS is bypassed)
-"""
-
 from __future__ import annotations
 
 from pathlib import Path

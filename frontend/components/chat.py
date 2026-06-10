@@ -1,4 +1,3 @@
-"""Chat bubble components — user/AI messages, empty state."""
 from __future__ import annotations
 
 import streamlit as st
@@ -41,7 +40,6 @@ def _bubble_ai(text: str, meta: dict) -> None:
 
 
 def render_chat_history(messages: list[dict]) -> None:
-    """Render all messages in the session as styled bubbles."""
     for msg in messages:
         if msg["role"] == "user":
             _bubble_user(msg["content"])
@@ -50,7 +48,6 @@ def render_chat_history(messages: list[dict]) -> None:
 
 
 def render_empty_state() -> None:
-    """Placeholder shown before the first message."""
     st.markdown(
         """
         <div class="empty-state">

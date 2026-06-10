@@ -36,7 +36,7 @@ sequenceDiagram
     Ranker->>Ranker: Calculate redundancy
     Ranker-->>Pipeline: RetrievedChunk[3]<br/>(diverse)
     
-    Pipeline->>Pipeline: build_prompt()<br/>system_prompt +<br/>context +<br/>question
+    Pipeline->>Pipeline: build_messages()<br/>system_prompt +<br/>context +<br/>question
     
     Pipeline->>LLM: generate(prompt)
     LLM->>LLM: Load GGUF model<br/>(cached)

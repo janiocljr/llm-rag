@@ -1,0 +1,92 @@
+[
+  {
+    "model_name": "e5-small",
+    "model_id": "intfloat/multilingual-e5-small",
+    "dimension": 384,
+    "success": true,
+    "query_doc_similarities": [
+      [
+        0.9131040573120117,
+        0.8104211091995239,
+        0.8069469332695007
+      ],
+      [
+        0.8289953470230103,
+        0.8966481685638428,
+        0.8083593845367432
+      ],
+      [
+        0.796947717666626,
+        0.8097867965698242,
+        0.8733028173446655
+      ]
+    ],
+    "avg_relevance": 0.838279128074646,
+    "max_relevance": 0.9131040573120117,
+    "min_relevance": 0.796947717666626
+  },
+  {
+    "model_name": "e5-base",
+    "model_id": "intfloat/multilingual-e5-base",
+    "success": false,
+    "error": "We couldn't connect to 'https://huggingface.co' to load the files, and couldn't find them in the cached files.\nCheck your internet connection or see how to run the library in offline mode at 'https://huggingface.co/docs/transformers/installation#offline-mode'."
+  },
+  {
+    "model_name": "e5-large",
+    "model_id": "intfloat/multilingual-e5-large",
+    "success": false,
+    "error": "We couldn't connect to 'https://huggingface.co' to load the files, and couldn't find them in the cached files.\nCheck your internet connection or see how to run the library in offline mode at 'https://huggingface.co/docs/transformers/installation#offline-mode'."
+  },
+  {
+    "model_name": "bge-m3",
+    "model_id": "BAAI/bge-m3",
+    "dimension": 1024,
+    "success": true,
+    "query_doc_similarities": [
+      [
+        0.6942632794380188,
+        0.26090458035469055,
+        0.24566984176635742
+      ],
+      [
+        0.34916234016418457,
+        0.6729769110679626,
+        0.43391096591949463
+      ],
+      [
+        0.29263776540756226,
+        0.41567105054855347,
+        0.6854525804519653
+      ]
+    ],
+    "avg_relevance": 0.45007213950157166,
+    "max_relevance": 0.6942632794380188,
+    "min_relevance": 0.24566984176635742
+  },
+  {
+    "model_name": "bge-small-en",
+    "model_id": "BAAI/bge-small-en-v1.5",
+    "dimension": 384,
+    "success": true,
+    "query_doc_similarities": [
+      [
+        0.7860836982727051,
+        0.614683210849762,
+        0.6357956528663635
+      ],
+      [
+        0.6104670166969299,
+        0.8392853736877441,
+        0.604580819606781
+      ],
+      [
+        0.6710635423660278,
+        0.6790127754211426,
+        0.7840555906295776
+      ]
+    ],
+    "avg_relevance": 0.691669762134552,
+    "max_relevance": 0.8392853736877441,
+    "min_relevance": 0.604580819606781
+  }
+]

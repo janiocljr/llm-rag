@@ -1,4 +1,3 @@
-"""Pipeline diagram — generates and renders an SVG of the RAG flow."""
 from __future__ import annotations
 
 import streamlit as st
@@ -19,17 +18,14 @@ _R = 36
 
 
 def _build_svg() -> str:
-    """Build the RAG pipeline SVG string."""
     parts: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{_W}" height="{_H}" '
         f'viewBox="0 0 {_W} {_H}" style="font-family:sans-serif;">'
     ]
 
-
     parts.append(
         f'<rect width="{_W}" height="{_H}" rx="12" fill="#0d1117"/>'
     )
-
 
     for i in range(len(_NODES) - 1):
         _, x1, y, _ = _NODES[i]
@@ -41,7 +37,6 @@ def _build_svg() -> str:
             f'stroke="#4a5568" stroke-width="2" marker-end="url(#arrow)"/>'
         )
 
-
     parts.append(
         '<defs>'
         '<marker id="arrow" markerWidth="8" markerHeight="8" '
@@ -50,7 +45,6 @@ def _build_svg() -> str:
         '</marker>'
         '</defs>'
     )
-
 
     for label, cx, cy, color in _NODES:
         lines = label.split("\n")
@@ -66,7 +60,6 @@ def _build_svg() -> str:
                 f'fill="#e2e8f0" font-size="11" font-weight="600">{line}</text>'
             )
 
-
     step_labels = ["1. Ingestão", "2. Chunk", "3. Embed", "4. Busca", "5. MMR", "6. Gera", "7. Resp."]
     for (_, cx, cy, _), lbl in zip(_NODES, step_labels):
         parts.append(
@@ -79,7 +72,6 @@ def _build_svg() -> str:
 
 
 def render_pipeline_diagram() -> None:
-    """Render the RAG pipeline SVG inside a styled container."""
     with st.expander("🔄 Diagrama do Pipeline RAG", expanded=False):
         svg = _build_svg()
         st.markdown(

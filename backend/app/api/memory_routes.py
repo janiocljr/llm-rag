@@ -1,9 +1,3 @@
-"""
-app/api/memory_routes.py
-========================
-FastAPI routes for the persistent memory orchestrator (from files 2)
-"""
-
 from __future__ import annotations
 
 import logging

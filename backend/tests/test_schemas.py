@@ -1,14 +1,3 @@
-"""
-Unit tests for app.models.schemas module.
-
-Tests cover:
-- DocumentChunk creation and properties
-- RetrievedChunk creation and properties
-- Query/Response models
-- Ingest models
-- Validation
-"""
-
 import pytest
 
 from app.models.schemas import (
@@ -24,10 +13,8 @@ from app.models.schemas import (
 
 
 class TestDocumentChunk:
-    """Test DocumentChunk model."""
 
     def test_document_chunk_creation(self) -> None:
-        """Test creating a DocumentChunk."""
         chunk = DocumentChunk(
             chunk_id="doc_1_p1_c0",
             text="Sample text content",
@@ -48,7 +35,6 @@ class TestDocumentChunk:
         assert chunk.token_estimate == 5
 
     def test_document_chunk_citation_property(self) -> None:
-        """Test citation property of DocumentChunk."""
         chunk = DocumentChunk(
             chunk_id="doc_1_p5_c0",
             text="Test",
@@ -62,7 +48,6 @@ class TestDocumentChunk:
         assert chunk.citation == "[annual_report_2024.pdf, p. 5]"
 
     def test_document_chunk_with_table_metadata(self) -> None:
-        """Test DocumentChunk with table metadata."""
         chunk = DocumentChunk(
             chunk_id="doc_1_p2_c0",
             text="| Header | Value |\n|--------|-------|\n| A | 1 |",
@@ -79,7 +64,6 @@ class TestDocumentChunk:
         assert chunk.table_csv_path == "/data/index/tables/table_001.csv"
 
     def test_document_chunk_with_semantic_type(self) -> None:
-        """Test DocumentChunk with semantic type."""
         chunk = DocumentChunk(
             chunk_id="doc_1_p1_c0",
             text="Introduction to the report",
@@ -96,7 +80,6 @@ class TestDocumentChunk:
         assert chunk.keywords == ["introduction", "report"]
 
     def test_document_chunk_default_optional_fields(self) -> None:
-        """Test DocumentChunk default optional fields."""
         chunk = DocumentChunk(
             chunk_id="test",
             text="text",
@@ -115,10 +98,8 @@ class TestDocumentChunk:
 
 
 class TestRetrievedChunk:
-    """Test RetrievedChunk model."""
 
     def test_retrieved_chunk_creation(self) -> None:
-        """Test creating a RetrievedChunk."""
         chunk = DocumentChunk(
             chunk_id="doc_1_p1_c0",
             text="Content here",
@@ -134,7 +115,6 @@ class TestRetrievedChunk:
         assert retrieved.score == 0.85
 
     def test_retrieved_chunk_formatted_property(self) -> None:
-        """Test formatted property of RetrievedChunk."""
         chunk = DocumentChunk(
             chunk_id="doc_1_p3_c0",
             text="Some important content",
@@ -153,7 +133,6 @@ class TestRetrievedChunk:
         assert "Some important content" in formatted
 
     def test_retrieved_chunk_score_validation(self) -> None:
-        """Test score validation for RetrievedChunk."""
         chunk = DocumentChunk(
             chunk_id="test",
             text="text",
@@ -169,17 +148,14 @@ class TestRetrievedChunk:
 
 
 class TestQueryRequest:
-    """Test QueryRequest model."""
 
     def test_query_request_minimal(self) -> None:
-        """Test creating a minimal QueryRequest."""
         req = QueryRequest(question="What is the main topic?")
         assert req.question == "What is the main topic?"
         assert req.top_k is None
         assert req.similarity_threshold is None
 
     def test_query_request_with_overrides(self) -> None:
-        """Test QueryRequest with parameter overrides."""
         req = QueryRequest(
             question="What happened?",
             top_k=10,
@@ -190,18 +166,15 @@ class TestQueryRequest:
         assert req.similarity_threshold == 0.5
 
     def test_query_request_question_validation_min_length(self) -> None:
-        """Test question minimum length validation."""
         with pytest.raises(ValueError):
             QueryRequest(question="ab")
 
     def test_query_request_question_validation_max_length(self) -> None:
-        """Test question maximum length validation."""
         long_question = "a" * 2001
         with pytest.raises(ValueError):
             QueryRequest(question=long_question)
 
     def test_query_request_top_k_validation(self) -> None:
-        """Test top_k validation."""
         req_min = QueryRequest(question="test question", top_k=1)
         assert req_min.top_k == 1
 
@@ -209,7 +182,6 @@ class TestQueryRequest:
         assert req_max.top_k == 20
 
     def test_query_request_similarity_threshold_validation(self) -> None:
-        """Test similarity_threshold validation."""
         req_min = QueryRequest(question="test question", similarity_threshold=0.0)
         assert req_min.similarity_threshold == 0.0
 
@@ -218,10 +190,8 @@ class TestQueryRequest:
 
 
 class TestQueryResponse:
-    """Test QueryResponse model."""
 
     def test_query_response_creation(self) -> None:
-        """Test creating a QueryResponse."""
         resp = QueryResponse(
             question="Test question",
             answer="Test answer",
@@ -238,7 +208,6 @@ class TestQueryResponse:
         assert resp.latency_ms == 150.5
 
     def test_query_response_with_retrieved_chunks(self) -> None:
-        """Test QueryResponse with retrieved chunks."""
         resp_chunk = RetrievedChunkResponse(
             chunk_id="c1",
             source_file="doc.pdf",
@@ -261,24 +230,19 @@ class TestQueryResponse:
 
 
 class TestIngestRequest:
-    """Test IngestRequest model."""
 
     def test_ingest_request_default(self) -> None:
-        """Test default IngestRequest."""
         req = IngestRequest()
         assert req.force_reindex is False
 
     def test_ingest_request_force_reindex(self) -> None:
-        """Test IngestRequest with force_reindex=True."""
         req = IngestRequest(force_reindex=True)
         assert req.force_reindex is True
 
 
 class TestIngestResponse:
-    """Test IngestResponse model."""
 
     def test_ingest_response_creation(self) -> None:
-        """Test creating an IngestResponse."""
         resp = IngestResponse(
             chunks_indexed=1000,
             documents_processed=5,
@@ -290,10 +254,8 @@ class TestIngestResponse:
 
 
 class TestIndexStatsResponse:
-    """Test IndexStatsResponse model."""
 
     def test_index_stats_response_creation(self) -> None:
-        """Test creating an IndexStatsResponse."""
         resp = IndexStatsResponse(
             total_chunks=500,
             documents=["doc1.pdf", "doc2.pdf"],

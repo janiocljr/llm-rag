@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-"""
-scripts/download_model.py
-=========================
-Helper script to download the Mistral 7B GGUF model from Hugging Face.
-
-This script must be run ONCE before first use.
-It does NOT run during normal operation (the system is fully offline after this step).
-
-Usage:
-    python scripts/download_model.py
-
-The model is saved to ./models/mistral-7b-instruct-v0.2.Q4_K_M.gguf (~4.1 GB).
-
-ALTERNATIVE MODELS (all work with llama-cpp-python):
-  - Llama 3 8B Instruct Q4_K_M:  TheBloke/Llama-3-8B-Instruct-GGUF
-  - Gemma 2 9B Q4_K_M:           bartowski/gemma-2-9b-it-GGUF
-  - Phi-3 mini 3.8B Q4_K_M:      microsoft/Phi-3-mini-4k-instruct-gguf
-"""
 
 import os
 import sys
@@ -54,9 +36,18 @@ MODELS = {
         "size_gb": 5.5,
         "description": "Gemma 2 9B Instruct — Q4_K_M quantised (~5.5 GB)",
     },
+        "qwen2.5-7b": {
+        "filename": "qwen2.5-7b-instruct-q4_k_m.gguf",
+        "url": (
+            "https://huggingface.co/bartowski/Qwen2.5-7B-Instruct-GGUF/"
+            "resolve/main/Qwen2.5-7B-Instruct-Q4_K_M.gguf"
+        ),
+        "size_gb": 4.7,
+        "description": "Qwen2.5 7B Instruct — Q4_K_M quantised (~4.7 GB) [PADRÃO]",
+    },
 }
 
-DEFAULT_MODEL = "mistral-7b"
+DEFAULT_MODEL = "qwen2.5-7b"
 
 
 def _progress_hook(block_num: int, block_size: int, total_size: int) -> None:

@@ -39,3 +39,7 @@ build/
 .vscode/
 .idea/
 *.DS_Store
+
+# Perguntas testes para desenvolvimento
+PERGUNTAS*.txt
+PERGUNTAS*.md

@@ -1,43 +1,3 @@
-"""
-app/core/memory.py
-==================
-Persistent Memory Orchestrator — bridges ChromaDB and MongoDB.
-
-This is the single entry-point the RAG pipeline uses to:
-  1. Save a chat turn (question + answer) to both stores.
-  2. Reconstruct context from past sessions at session start.
-  3. Save knowledge notes and tasks from conversations.
-
-Separation of concerns
------------------------
-    ChromaDB (chroma_store)  → semantic search, embedding lookup
-    MongoDB  (mongo_store)   → human-readable documents, session history,
-                               full-text search, structured tasks
-
-Flow at query time
-------------------
-    user_question
-         │
-         ▼
-    embed_query()       ─── embedder ───→ float32 vector
-         │
-         ├──▶ ChromaMemoryStore.recall()   → past memories most similar to question
-         │
-         ├──▶ ChromaPDFStore.search()      → relevant PDF chunks
-         │
-         └──▶ build prompt with both context sources
-                         │
-                         ▼
-                     LLM.generate()
-                         │
-                         ▼
-                    save_turn()
-                         │
-                         ├──▶ ChromaDB: embed Q + A → memory collection
-                         └──▶ MongoDB:  turn → session.turns,
-                                        document → documents collection
-"""
-
 from __future__ import annotations
 
 import logging
@@ -94,30 +54,8 @@ def get_task_store() -> MongoTaskStore:
 
 
 class MemoryOrchestrator:
-    """
-    High-level persistent memory API used by the RAG pipeline and API routes.
-
-    Session lifecycle
-    -----------------
-    1. new_session() / resume_session()
-    2. [optional] reconstruct_context() to prime the LLM with past memories
-    3. save_turn() after each Q&A pair
-    4. close_session() when the user ends the chat
-
-    Document lifecycle
-    ------------------
-    save_note()  — save a manually written markdown note
-    save_task()  — save a structured task
-    save_knowledge()  — save derived knowledge / summaries
-
-    These all write to MongoDB and embed in ChromaDB automatically.
-    """
 
     def __init__(self, embedder) -> None:
-        """
-        embedder: the app.core.embedder.Embedder instance from the pipeline.
-        Injected rather than instantiated here to avoid double-loading the model.
-        """
         self._embedder     = embedder
         self._pdf_store    = get_pdf_store()
         self._memory_store = get_memory_store()
@@ -127,14 +65,12 @@ class MemoryOrchestrator:
 
 
     def new_session(self, title: str = "", tags: Optional[list[str]] = None) -> str:
-        """Start a new chat session.  Returns the session_id (UUID string)."""
         session_id = str(uuid.uuid4())
         self._session_store.create(session_id, title=title, tags=tags)
         logger.info(f"New session: {session_id}")
         return session_id
 
     def resume_session(self, session_id: str) -> Optional[dict]:
-        """Fetch an existing session record."""
         session = self._session_store.get(session_id)
         if not session:
             logger.warning(f"Session not found: {session_id}")
@@ -153,14 +89,6 @@ class MemoryOrchestrator:
         threshold: float = 0.50,
         exclude_current_session: bool = True,
     ) -> list[dict]:
-        """
-        Surface the most semantically relevant memories from past sessions.
-
-        Called at the beginning of a query to inject long-term context into
-        the prompt alongside the PDF-retrieved chunks.
-
-        Returns a list of memory dicts sorted by score descending.
-        """
         q_embedding = self._embed_text(question)
 
         memories = self._memory_store.recall(
@@ -182,18 +110,6 @@ class MemoryOrchestrator:
         answer: str,
         tags: Optional[list[str]] = None,
     ) -> dict:
-        """
-        Persist one Q&A turn.
-
-        Steps:
-        1. Embed question → save to ChromaDB chat_memory
-        2. Embed answer   → save to ChromaDB chat_memory
-        3. Save combined turn to MongoDB session.turns
-        4. Save conversation document to MongoDB documents
-        5. Link document to session
-
-        Returns dict with the created chroma_ids and mongo_id.
-        """
         q_embedding = self._embed_text(question)
         a_embedding = self._embed_text(answer)
 
@@ -227,7 +143,6 @@ class MemoryOrchestrator:
 
         self._session_store.link_doc(session_id, mongo_id)
 
-
         return {
             "session_id":   session_id,
             "mongo_id":     mongo_id,
@@ -243,7 +158,6 @@ class MemoryOrchestrator:
         session_id: Optional[str] = None,
         tags: Optional[list[str]] = None,
     ) -> dict:
-        """Save a markdown note to both stores."""
         embedding  = self._embed_text(content)
         chroma_id  = self._memory_store.save(
             text=content,
@@ -272,7 +186,6 @@ class MemoryOrchestrator:
         session_id: Optional[str] = None,
         tags: Optional[list[str]] = None,
     ) -> dict:
-        """Save a derived knowledge fragment (e.g. LLM-generated summary)."""
         embedding = self._embed_text(content)
         chroma_id = self._memory_store.save(
             text=content,
@@ -300,7 +213,6 @@ class MemoryOrchestrator:
         tags: Optional[list[str]] = None,
         session_id: Optional[str] = None,
     ) -> dict:
-        """Save a task to both MongoDB (structured) and ChromaDB (semantic)."""
         content   = f"# Tarefa: {title}\n\n{description}"
         embedding = self._embed_text(content)
         chroma_id = self._memory_store.save(
@@ -341,6 +253,5 @@ class MemoryOrchestrator:
 
 
     def _embed_text(self, text: str) -> list[float]:
-        """Embed a single string using the pipeline embedder."""
         vec = self._embedder.embed_query(text)
         return vec.tolist() if hasattr(vec, "tolist") else list(vec)

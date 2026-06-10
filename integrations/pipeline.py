@@ -1,17 +1,3 @@
-"""
-app/core/pipeline.py  —  v3 (ChromaDB + MongoDB)
-==================================================
-RAG Pipeline — orchestrates all components end-to-end.
-
-New in v3
----------
-- VectorStore is now ChromaPDFStore when USE_CHROMA=True (default).
-- MemoryOrchestrator is initialised at startup and exposed on app.state.
-- query() accepts session_id; past memories are injected into the prompt.
-- save_turn() is called automatically after each successful query.
-- Fallback to FAISS VectorStore when USE_CHROMA=False.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -23,7 +9,7 @@ from typing import Optional
 from app.core.config import Settings
 from app.core.embedder import Embedder
 from app.core.ingestion import PDFIngester
-from app.core.llm import LocalLLM, build_prompt, NOT_FOUND_SENTINEL
+from app.core.llm import LocalLLM, build_messages, NOT_FOUND_SENTINEL
 from app.core.memory import MemoryOrchestrator, get_pdf_store
 from app.models.schemas import (
     DocumentChunk,
@@ -62,13 +48,6 @@ def _clean_query(question: str) -> str:
 
 
 class RAGPipeline:
-    """
-    Full RAG pipeline with persistent memory.
-
-    app.state exposes:
-        pipeline        → this object
-        memory          → MemoryOrchestrator (used by memory API routes)
-    """
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -178,18 +157,6 @@ class RAGPipeline:
 
 
     def query(self, request: QueryRequest) -> QueryResponse:
-        """
-        Full RAG pipeline with persistent memory.
-
-        Steps:
-        1.  Clean + embed the question.
-        2.  Recall relevant past memories from ChromaDB chat_memory.
-        3.  Retrieve relevant PDF chunks (ChromaDB or FAISS).
-        4.  MMR re-rank for diversity.
-        5.  Build prompt = system + past memories + PDF context + question.
-        6.  Generate LLM response.
-        7.  Save Q&A turn to ChromaDB + MongoDB.
-        """
         t0 = time.perf_counter()
 
         session_id = getattr(request, "session_id", None) or ""
@@ -259,7 +226,7 @@ class RAGPipeline:
         found = len(final_chunks) > 0
 
         memory_context = _format_memory_context(past_memories)
-        prompt = build_prompt(
+        prompt = build_messages(
             question=request.question,
             retrieved_chunks=final_chunks,
             system_prompt=self.settings.system_prompt,
@@ -324,10 +291,6 @@ class RAGPipeline:
 
 
 def _format_memory_context(memories: list[dict]) -> str:
-    """
-    Format recalled memories as a context block for the LLM prompt.
-    Returns empty string when there are no memories.
-    """
     if not memories:
         return ""
     lines = ["<memória_de_sessões_anteriores>"]

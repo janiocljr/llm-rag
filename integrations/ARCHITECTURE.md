@@ -193,7 +193,7 @@ Nova pergunta do usuário
          │    (com roteamento de tabelas para queries estatísticas)
          │
          ▼
-  build_prompt(
+  build_messages(
       system_prompt,
       <memória_de_sessões_anteriores>...,   ← contexto histórico
       <contexto_documentos>...,             ← chunks PDF

@@ -1,9 +1,3 @@
-"""
-app/core/memory.py
-==================
-Memory orchestrator bridging ChromaDB and MongoDB (from files 2)
-"""
-
 from __future__ import annotations
 
 import logging
@@ -82,7 +76,7 @@ class MemoryOrchestrator:
         self._session_store.close(session_id, summary=summary)
         logger.info(f"Session closed: {session_id}")
 
-    def reconstruct_context(self, question: str, session_id: str, top_k: int = 5, threshold: float = 0.50, exclude_current_session: bool = True,) -> list[dict]:
+    def reconstruct_context(self, question: str, session_id: str, top_k: int = 5, threshold: float = 0.50, exclude_current_session: bool = True) -> list[dict]:
         q_embedding = self._embed_text(question)
         memories = self._memory_store.recall(query_embedding=q_embedding, top_k=top_k * 2, threshold=threshold)
         if exclude_current_session:
@@ -106,7 +100,7 @@ class MemoryOrchestrator:
 
         return {"session_id": session_id, "mongo_id": mongo_id, "q_chroma_id": q_chroma_id, "a_chroma_id": a_chroma_id}
 
-    def save_note(self, title: str, content: str, session_id: Optional[str] = None, tags: Optional[list[str]] = None,) -> dict:
+    def save_note(self, title: str, content: str, session_id: Optional[str] = None, tags: Optional[list[str]] = None) -> dict:
         embedding = self._embed_text(content)
         chroma_id = self._memory_store.save(text=content, embedding=embedding, memory_type="note", session_id=session_id or "", tags=tags or [])
         mongo_id = self._doc_store.create(title=title, content=content, doc_type="note", tags=tags or [], session_id=session_id, chroma_ids=[chroma_id])
@@ -114,13 +108,13 @@ class MemoryOrchestrator:
             self._session_store.link_doc(session_id, mongo_id)
         return {"mongo_id": mongo_id, "chroma_id": chroma_id}
 
-    def save_knowledge(self, title: str, content: str, source_file: Optional[str] = None, session_id: Optional[str] = None, tags: Optional[list[str]] = None,) -> dict:
+    def save_knowledge(self, title: str, content: str, source_file: Optional[str] = None, session_id: Optional[str] = None, tags: Optional[list[str]] = None) -> dict:
         embedding = self._embed_text(content)
         chroma_id = self._memory_store.save(text=content, embedding=embedding, memory_type="note", session_id=session_id or "", tags=tags or [])
         mongo_id = self._doc_store.create(title=title, content=content, doc_type="knowledge", tags=tags or [], source_file=source_file, session_id=session_id, chroma_ids=[chroma_id])
         return {"mongo_id": mongo_id, "chroma_id": chroma_id}
 
-    def save_task(self, title: str, description: str = "", priority: str = "medium", tags: Optional[list[str]] = None, session_id: Optional[str] = None,) -> dict:
+    def save_task(self, title: str, description: str = "", priority: str = "medium", tags: Optional[list[str]] = None, session_id: Optional[str] = None) -> dict:
         content = f"# Tarefa: {title}\n\n{description}"
         embedding = self._embed_text(content)
         chroma_id = self._memory_store.save(text=content, embedding=embedding, memory_type="task", session_id=session_id or "", tags=tags or [])

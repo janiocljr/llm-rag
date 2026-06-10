@@ -1,4 +1,3 @@
-"""Text cleaning and tokenization utilities."""
 from __future__ import annotations
 
 import re
@@ -6,7 +5,6 @@ import unicodedata
 
 
 def clean_text(text: str) -> str:
-    """Normalize unicode, remove control characters, and collapse whitespace."""
     text = unicodedata.normalize("NFKC", text)
 
     text = re.sub(r"[^\S\n\t ]+", " ", text)

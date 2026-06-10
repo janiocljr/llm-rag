@@ -1,11 +1,9 @@
-"""Prompt viewer — expandable raw LLM prompt panel."""
 from __future__ import annotations
 
 import streamlit as st
 
 
 def render_prompt_viewer(full_prompt: str) -> None:
-    """Render the raw LLM prompt inside a collapsible expander."""
     with st.expander("📝 Prompt completo enviado ao LLM", expanded=False):
         st.markdown(
             "Prompt exato que foi construído e enviado ao modelo de linguagem:",

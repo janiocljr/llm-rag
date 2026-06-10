@@ -1,21 +1,3 @@
-"""
-tests/test_rag_system.py
-========================
-Automated test suite for the RAG system.
-
-Test coverage:
-  1. Chunking quality (size, overlap, metadata correctness)
-  2. Embedding correctness (dimensions, normalisation, query prefix)
-  3. Vector store (add, search, threshold, persistence, MMR)
-  4. Retrieval precision@k evaluation
-  5. Out-of-scope / hallucination guard tests
-  6. Pipeline integration tests (with stub LLM)
-  7. Prompt construction tests
-  8. API endpoint tests (via TestClient)
-
-Run with: pytest tests/ -v --tb=short
-"""
-
 import json
 import shutil
 import tempfile
@@ -30,7 +12,6 @@ from fastapi.testclient import TestClient
 
 @pytest.fixture(scope="session")
 def sample_text() -> str:
-    """Realistic multi-paragraph text that resembles PDF content."""
     return (
         "Artificial intelligence (AI) is intelligence demonstrated by machines, "
         "as opposed to natural intelligence displayed by animals including humans. "
@@ -58,17 +39,14 @@ def sample_text() -> str:
 
 @pytest.fixture(scope="session")
 def tmp_dir() -> Generator[Path, None, None]:
-    """Temporary directory cleaned up after all tests."""
     d = Path(tempfile.mkdtemp(prefix="rag_test_"))
     yield d
     shutil.rmtree(d, ignore_errors=True)
 
 
 class TestChunking:
-    """Tests for RecursiveCharSplitter and PDFIngester."""
 
     def test_chunk_size_within_bounds(self, sample_text):
-        """All chunks must be at or below the configured max_tokens."""
         from app.core.ingestion import RecursiveCharSplitter, estimate_tokens
 
         splitter = RecursiveCharSplitter(max_tokens=100, overlap_tokens=10)
@@ -82,7 +60,6 @@ class TestChunking:
             )
 
     def test_no_empty_chunks(self, sample_text):
-        """No chunk should be empty or whitespace-only."""
         from app.core.ingestion import RecursiveCharSplitter
 
         splitter = RecursiveCharSplitter(max_tokens=200, overlap_tokens=20)
@@ -91,10 +68,6 @@ class TestChunking:
             assert chunk.strip(), "Found empty chunk"
 
     def test_all_content_preserved(self, sample_text):
-        """
-        The concatenation of chunks should cover all unique words in the original.
-        This verifies no content is silently dropped during chunking.
-        """
         from app.core.ingestion import RecursiveCharSplitter
 
         splitter = RecursiveCharSplitter(max_tokens=150, overlap_tokens=15)
@@ -110,9 +83,6 @@ class TestChunking:
         assert len(missing) == 0, f"Words missing from chunks: {missing[:10]}"
 
     def test_overlap_creates_shared_content(self, sample_text):
-        """
-        With overlap > 0, consecutive chunks should share at least some words.
-        """
         from app.core.ingestion import RecursiveCharSplitter
 
         splitter = RecursiveCharSplitter(max_tokens=80, overlap_tokens=20)
@@ -132,11 +102,9 @@ class TestChunking:
         assert shared_found, "No overlap detected between consecutive chunks"
 
     def test_chunk_metadata_correctness(self, tmp_dir):
-        """DocumentChunk IDs must follow the '<stem>_p<page>_c<idx>' pattern."""
         from app.core.ingestion import PDFIngester, DocumentChunk
 
         ingester = PDFIngester(chunk_size=200, chunk_overlap=20)
-
 
         chunk = DocumentChunk(
             chunk_id="test_doc_p3_c1",
@@ -155,7 +123,6 @@ class TestChunking:
         assert chunk.token_estimate > 0
 
     def test_text_cleaning(self):
-        """clean_text should handle ligatures, hyphenation, and extra whitespace."""
         from app.core.ingestion import clean_text
 
         dirty = "The ﬁrst  step is under-\nstanding the prob- \nlem.\n\n\n\nNew para."
@@ -168,7 +135,6 @@ class TestChunking:
 
 
 class TestEmbedder:
-    """Tests for the Embedder class."""
 
     @pytest.fixture(scope="class")
     def embedder(self):
@@ -176,12 +142,10 @@ class TestEmbedder:
         return Embedder(model_name="BAAI/bge-small-en-v1.5", batch_size=8)
 
     def test_embedding_dimension(self, embedder):
-        """Embeddings must have the correct dimension (384 for bge-small)."""
         emb = embedder.embed_query("What is machine learning?")
         assert emb.shape == (1, 384), f"Expected (1, 384), got {emb.shape}"
 
     def test_embedding_normalised(self, embedder):
-        """L2 norm of each embedding must be ≈ 1.0 (normalised)."""
         texts = ["Hello world", "Machine learning is great", "RAG systems are useful"]
         from app.models.schemas import DocumentChunk
         chunks = [
@@ -204,10 +168,6 @@ class TestEmbedder:
             assert abs(norm - 1.0) < 1e-5, f"Embedding {i} not normalised: norm={norm}"
 
     def test_similar_texts_have_higher_score(self, embedder):
-        """
-        Semantically similar texts should have higher cosine similarity
-        than unrelated texts.
-        """
         q = embedder.embed_query("What is deep learning?")
 
         from app.models.schemas import DocumentChunk
@@ -235,23 +195,19 @@ class TestEmbedder:
         )
 
     def test_empty_input(self, embedder):
-        """Embedding an empty list should return an empty array."""
         result = embedder.embed_documents([])
         assert result.shape == (0, 384)
 
 
 class TestVectorStore:
-    """Tests for VectorStore: add, search, threshold, persistence, MMR."""
 
     @pytest.fixture
     def store_and_chunks(self, tmp_dir):
-        """Create a populated vector store for testing."""
         from app.core.vector_store import VectorStore
         from app.models.schemas import DocumentChunk
 
         store_dir = tmp_dir / "test_store"
         store = VectorStore(embedding_dim=4, index_dir=store_dir)
-
 
         chunks = []
         embeddings = []
@@ -284,27 +240,23 @@ class TestVectorStore:
         return store, chunks, embeddings_array
 
     def test_search_returns_correct_count(self, store_and_chunks):
-        """Search with top_k=3 should return at most 3 results."""
         store, chunks, embeddings = store_and_chunks
         query = embeddings[0:1]
         results = store.search(query, top_k=3, threshold=0.0)
         assert len(results) <= 3
 
     def test_threshold_filters_low_scores(self, store_and_chunks):
-        """Results below threshold must not appear."""
         store, chunks, embeddings = store_and_chunks
         query = embeddings[0:1]
 
         results_high = store.search(query, top_k=5, threshold=0.9)
         results_low = store.search(query, top_k=5, threshold=0.0)
 
-
         assert len(results_high) <= len(results_low)
         for r in results_high:
             assert r.score >= 0.9, f"Score {r.score} below threshold 0.9"
 
     def test_results_sorted_by_score(self, store_and_chunks):
-        """Results must be sorted in descending order of similarity."""
         store, chunks, embeddings = store_and_chunks
         query = embeddings[0:1]
         results = store.search(query, top_k=5, threshold=0.0)
@@ -313,7 +265,6 @@ class TestVectorStore:
         assert scores == sorted(scores, reverse=True), "Results not sorted by score"
 
     def test_empty_store_returns_empty(self, tmp_dir):
-        """Searching an empty store must return an empty list (not crash)."""
         from app.core.vector_store import VectorStore
         store = VectorStore(embedding_dim=4, index_dir=tmp_dir / "empty_store")
         query = np.array([[1.0, 0.0, 0.0, 0.0]], dtype=np.float32)
@@ -321,7 +272,6 @@ class TestVectorStore:
         assert results == []
 
     def test_persistence(self, store_and_chunks, tmp_dir):
-        """Saved index must be loadable with the same chunks."""
         store, chunks, _ = store_and_chunks
         store.save()
 
@@ -332,43 +282,23 @@ class TestVectorStore:
         assert store2.documents == store.documents, "Reloaded store has wrong docs"
 
     def test_mmr_reduces_redundancy(self, store_and_chunks):
-        """
-        MMR re-ranking should produce a more diverse result set than plain top-k.
-        We verify this by checking that MMR selects chunks from different pages.
-        """
         store, chunks, embeddings = store_and_chunks
         query = embeddings[0:1]
 
         candidates = store.search(query, top_k=5, threshold=0.0)
         mmr_result = store.mmr_rerank(candidates, query, final_k=2, lambda_=0.5)
 
-
         assert len(mmr_result) <= 2
 
 
 class TestRetrievalPrecision:
-    """
-    Precision@k evaluation.
-
-    Setup: We create a controlled corpus with known relevant/irrelevant chunks.
-    Then measure what fraction of top-k results are truly relevant.
-
-    Precision@k = |{relevant} ∩ {top_k}| / k
-
-    For a well-tuned RAG system, precision@3 should exceed 0.6.
-    """
 
     def test_precision_at_k(self):
-        """
-        Verify that semantic search achieves reasonable precision on a
-        controlled topic-separated corpus.
-        """
         from app.core.vector_store import VectorStore
         from app.core.embedder import Embedder
         from app.models.schemas import DocumentChunk
 
         embedder = Embedder(model_name="BAAI/bge-small-en-v1.5", batch_size=8)
-
 
         ai_texts = [
             "Machine learning algorithms learn patterns from training data.",
@@ -406,12 +336,10 @@ class TestRetrievalPrecision:
             store = VectorStore(embedding_dim=embedder.dim, index_dir=Path(td))
             store.add(all_chunks, embeddings)
 
-
             query_emb = embedder.embed_query(
                 "How do neural networks learn representations?"
             )
             results = store.search(query_emb, top_k=3, threshold=0.0)
-
 
             relevant_ids = {f"c{i}" for i in range(6)}
             retrieved_ids = {r.chunk.chunk_id for r in results}
@@ -427,15 +355,8 @@ class TestRetrievalPrecision:
 
 
 class TestHallucinationGuard:
-    """
-    Tests that ensure the system returns 'not found' for out-of-scope queries
-    rather than generating hallucinated answers.
-    """
 
     def test_low_similarity_returns_not_found(self):
-        """
-        When all retrieved chunks score below threshold, found_in_documents=False.
-        """
         from app.core.vector_store import VectorStore
         from app.models.schemas import DocumentChunk, QueryRequest
         from app.core.pipeline import RAGPipeline
@@ -457,7 +378,6 @@ class TestHallucinationGuard:
 
             pipeline = RAGPipeline(settings)
 
-
             from app.core.embedder import Embedder
             embedder = Embedder()
             chunk = DocumentChunk(
@@ -473,7 +393,6 @@ class TestHallucinationGuard:
             emb = embedder.embed_documents([chunk])
             pipeline.vector_store.add([chunk], emb)
 
-
             response = pipeline.query(QueryRequest(
                 question="What is the chemical formula for water?"
             ))
@@ -483,7 +402,6 @@ class TestHallucinationGuard:
             )
 
     def test_empty_index_returns_not_found(self):
-        """Querying an empty index must not raise an exception."""
         from app.core.vector_store import VectorStore
         from app.models.schemas import QueryRequest
         from app.core.pipeline import RAGPipeline
@@ -510,10 +428,9 @@ class TestHallucinationGuard:
 
 
 class TestPromptConstruction:
-    """Tests for build_prompt()."""
 
     def test_prompt_contains_question(self):
-        from app.core.llm import build_prompt
+        from app.core.llm import build_messages
         from app.models.schemas import DocumentChunk, RetrievedChunk
 
         chunk = DocumentChunk(
@@ -523,7 +440,7 @@ class TestPromptConstruction:
         )
         rc = RetrievedChunk(chunk=chunk, score=0.85)
 
-        prompt = build_prompt(
+        prompt = build_messages(
             question="How is AI used?",
             retrieved_chunks=[rc],
             system_prompt="Answer only from context.",
@@ -535,10 +452,9 @@ class TestPromptConstruction:
         assert "AI is transforming industries." in prompt
 
     def test_prompt_with_no_chunks(self):
-        """Prompt with no retrieved chunks must include the 'no context' message."""
-        from app.core.llm import build_prompt
+        from app.core.llm import build_messages
 
-        prompt = build_prompt(
+        prompt = build_messages(
             question="What is X?",
             retrieved_chunks=[],
             system_prompt="Answer only from context.",
@@ -547,7 +463,6 @@ class TestPromptConstruction:
         assert "No relevant context found" in prompt
 
     def test_multiple_sources_in_prompt(self):
-        """Each retrieved chunk must appear with its source label."""
         from app.core.llm import build_prompt
         from app.models.schemas import DocumentChunk, RetrievedChunk
 
@@ -564,20 +479,15 @@ class TestPromptConstruction:
             for i in range(3)
         ]
 
-        prompt = build_prompt("Test question", chunks, "Be precise.")
+        prompt = build_messages("Test question", chunks, "Be precise.")
         for i in range(3):
             assert f"doc{i}.pdf" in prompt, f"Source doc{i}.pdf missing from prompt"
 
 
 class TestAPI:
-    """
-    Integration tests using FastAPI TestClient.
-    The LLM is mocked to avoid needing a real model file.
-    """
 
     @pytest.fixture(scope="class")
     def client(self, tmp_dir):
-        """Create a TestClient with a fully mocked pipeline."""
         from app.main import app
         from app.core.pipeline import RAGPipeline
         from app.models.schemas import (
@@ -636,7 +546,6 @@ class TestAPI:
         assert "found_in_documents" in data
 
     def test_query_validation_min_length(self, client):
-        """Questions shorter than 3 chars must be rejected with 422."""
         response = client.post("/api/v1/query", json={"question": "AI"})
         assert response.status_code == 422
 

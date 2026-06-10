@@ -1,25 +1,3 @@
-"""
-app/api/memory_routes.py
-========================
-REST endpoints for the persistent memory system.
-
-Endpoints
----------
-POST   /api/v1/memory/sessions                → new_session()
-GET    /api/v1/memory/sessions                → list_recent()
-GET    /api/v1/memory/sessions/{session_id}   → get session + turns
-POST   /api/v1/memory/sessions/{session_id}/close  → close_session()
-
-POST   /api/v1/memory/notes                   → save_note()
-POST   /api/v1/memory/tasks                   → save_task()
-POST   /api/v1/memory/knowledge               → save_knowledge()
-
-GET    /api/v1/memory/documents               → list / search documents
-GET    /api/v1/memory/stats                   → memory stats
-
-POST   /api/v1/memory/recall                  → reconstruct context for a query
-"""
-
 from __future__ import annotations
 
 import logging
@@ -34,7 +12,6 @@ router = APIRouter(prefix="/memory", tags=["memory"])
 
 
 def _mem(request: Request):
-    """Access MemoryOrchestrator from app.state."""
     return request.app.state.memory
 
 
@@ -83,7 +60,6 @@ class RecallRequest(BaseModel):
 
 @router.post("/sessions", response_model=NewSessionResponse, summary="Start a new chat session")
 async def new_session(body: NewSessionRequest, request: Request):
-    """Create a new session record. Returns session_id for subsequent queries."""
     mem = _mem(request)
     session_id = mem.new_session(title=body.title, tags=body.tags)
     return NewSessionResponse(session_id=session_id)
@@ -184,10 +160,6 @@ async def get_document(mongo_id: str, request: Request):
 
 @router.post("/recall", summary="Recall semantically relevant past memories for a query")
 async def recall_context(body: RecallRequest, request: Request):
-    """
-    Surface past memories most relevant to the given question.
-    Used by the frontend to show the user what context will be injected.
-    """
     mem = _mem(request)
     memories = mem.reconstruct_context(
         question=body.question,
