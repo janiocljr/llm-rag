@@ -56,8 +56,7 @@ def _progress_hook(block_num: int, block_size: int, total_size: int) -> None:
         pct = min(100, downloaded * 100 // total_size)
         mb = downloaded / (1024 ** 2)
         total_mb = total_size / (1024 ** 2)
-        bar = "█" * (pct // 5) + "░" * (20 - pct // 5)
-        print(f"\r  [{bar}] {pct:3d}%  {mb:.0f}/{total_mb:.0f} MB", end="", flush=True)
+        print(f"\r {pct:3d}%  {mb:.0f}/{total_mb:.0f} MB", end="", flush=True)
     else:
         mb = downloaded / (1024 ** 2)
         print(f"\r  Downloaded: {mb:.1f} MB", end="", flush=True)

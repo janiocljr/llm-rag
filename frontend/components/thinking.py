@@ -14,7 +14,6 @@ def _chunk_card(chunk: dict, index: int = 1) -> str:
     citation = chunk.get("citation", f"[{source}, p. {page}]")
 
     relevance_pct = int(score * 100)
-    relevance_bar = "█" * (relevance_pct // 10) + "░" * (10 - relevance_pct // 10)
 
     if score > 0.6:
         color = "4CAF50"
@@ -28,7 +27,7 @@ def _chunk_card(chunk: dict, index: int = 1) -> str:
         f'  <div class="chunk-header">'
         f'    <span class="chunk-source">📄 Fonte {index}: {citation}</span>'
         f'    <span class="score-badge" style="background: #{color}; color: white">'
-        f'      {relevance_bar} {relevance_pct}%'
+        f'      {relevance_pct}%'
         f'    </span>'
         f'  </div>'
         f'  <div class="chunk-text">"{text_preview}"</div>'
