@@ -1,9 +1,3 @@
-"""RAG Chat — interface Streamlit.
-
-Orquestra sidebar, histórico de chat, streaming de respostas e o painel
-de detalhes da última consulta. Toda a lógica de apresentação vive em
-components/; aqui ficam apenas o fluxo e o estado da sessão.
-"""
 from __future__ import annotations
 
 import sys
@@ -49,7 +43,6 @@ if "last_response" not in st.session_state:
 
 
 def _normalize_prompt(raw) -> str:
-    """O backend pode enviar o prompt como string ou lista de mensagens."""
     if isinstance(raw, list):
         return "\n\n".join(
             f"[{m.get('role', '').upper()}]\n{m.get('content', '')}" for m in raw
@@ -64,7 +57,6 @@ def _append_assistant(content: str, meta: dict) -> None:
 
 
 def _answer_demo(question: str) -> None:
-    """Modo demo: reproduz a resposta de exemplo com streaming simulado."""
     response = DEMO_QUERY_RESPONSE
     with st.chat_message("assistant", avatar=ASSISTANT_AVATAR):
         placeholder = st.empty()
@@ -88,7 +80,6 @@ def _answer_demo(question: str) -> None:
 
 
 def _answer_live(client: APIClient, question: str, top_k: int, threshold: float) -> None:
-    """Consulta a API com streaming SSE e persiste o resultado no histórico."""
     t0 = time.perf_counter()
     buf = ""
     chunks: list[dict] = []

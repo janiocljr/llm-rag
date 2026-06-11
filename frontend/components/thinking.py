@@ -1,4 +1,3 @@
-"""Painel de fontes — trechos dos documentos usados como contexto."""
 from __future__ import annotations
 
 import html
@@ -17,8 +16,6 @@ def _source_card(chunk: dict, index: int) -> str:
 
     tier = score_tier(score)
     pct = max(0, min(100, int(round(score * 100))))
-
-    # Conteúdo vem dos PDFs — escapar antes de injetar no HTML do card.
     citation = html.escape(citation)
     text_preview = html.escape(text_preview)
 

@@ -47,8 +47,6 @@ class TestResolveDevice:
 
 
 class TestResolvePrefixes:
-    """Cada família de modelo de embedding tem um protocolo de prefixo próprio."""
-
     def test_e5_models_use_query_and_passage_prefixes(self) -> None:
         assert _resolve_prefixes("intfloat/multilingual-e5-small") == (
             _E5_QUERY_PREFIX,

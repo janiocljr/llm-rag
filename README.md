@@ -39,6 +39,8 @@ Sistema RAG completo e offline que permite consultar documentos PDF através de 
 | Extração de texto | `pdfplumber` + `Camelot` | Texto e tabelas de PDFs |
 | Embeddings | `intfloat/multilingual-e5-small` | 384-dim, multilíngue |
 | Índice vetorial | FAISS `IndexFlatIP` | Busca exata por similaridade |
+| Índice lexical | BM25 (Okapi) | Busca por termos exatos, puro Python |
+| Fusão de rankings | Reciprocal Rank Fusion (RRF) | Combina vetorial + lexical |
 | Re-ranking | MMR (λ = 0.6) | Diversidade nos resultados |
 | LLM | `Qwen2.5-7B-Instruct` Q4\_K\_M | Inferência local via llama-cpp |
 | Frontend | Streamlit | Interface web interativa |
@@ -53,6 +55,7 @@ Sistema RAG completo e offline que permite consultar documentos PDF através de 
 - **Separação de notas de rodapé**: cada nota gera um chunk dedicado para preservar fatos numéricos
 - **Detecção de headers/footers**: remoção automática de conteúdo repetitivo
 - **Exportação de tabelas em CSV**: salvas em `backend/data/index/tables/`
+- **Limpeza de tabelas pdfplumber**: remove linhas e colunas inteiramente vazias antes de gerar o chunk, evitando "| | |" que polui embeddings e BM25
 
 ### Chunking Token-Aware
 - **Recursive character splitter**: respeita limites semânticos (parágrafos → sentenças → palavras)
@@ -60,11 +63,18 @@ Sistema RAG completo e offline que permite consultar documentos PDF através de 
 - **Overlap de 50 tokens**: evita perda de informação nas bordas dos chunks
 - **Page-aware**: chunks nunca cruzam limites de página — citações sempre precisas
 
-### Recuperação e Re-ranking
-- **Top-K retrieval**: recupera os 10 chunks mais similares
-- **Threshold de similaridade**: filtra chunks com score < 0.45
-- **MMR re-ranking**: injeta os 5 melhores chunks balanceando relevância e diversidade
+### Busca Híbrida (Vetorial + Lexical)
+- **FAISS IndexFlatIP**: recupera os 10 chunks semanticamente mais similares
+- **BM25 Okapi** (`lexical.py`): busca por termos exatos — números, datas, siglas ("IPCA", "5,35%", "julho 2025") que embeddings pequenos não distinguem bem
+- **Reciprocal Rank Fusion (RRF, k=60)**: funde os dois rankings de forma robusta a escalas distintas de score
+- **Threshold de similaridade**: filtra candidatos com score vetorial < 0.45
+- **MMR re-ranking**: seleciona os 5 melhores chunks balanceando relevância e diversidade
 - **SSE streaming**: resposta transmitida token a token para o frontend
+
+### Qualidade da Resposta
+- **`classify_answer()`**: detecta e corrige o padrão de falso negativo de modelos quantizados — quando o LLM inicia com "Não encontrei..." mas em seguida apresenta o dado correto com citação, o prefixo espúrio é removido automaticamente
+- **`stream_with_false_negative_guard()`**: versão streaming do mesmo mecanismo, bufferiza apenas o início sem bloquear o fluxo
+- **`context_char_budget()`**: calcula o orçamento de caracteres para o bloco de contexto reservando espaço para a resposta e para o system prompt, evitando `ValueError` por estouro da janela de contexto do modelo
 
 ### Aceleração por Hardware
 - **Apple Silicon (MPS)**: `LLM_N_GPU_LAYERS=-1` ativa Metal GPU para inferência (~30× vs. CPU)
@@ -197,8 +207,9 @@ llm-rag/
 │   │   │   ├── advanced_ingestion.py  # Chunking semântico, detecção H/F
 │   │   │   ├── embedder.py      # multilingual-e5-small wrapper
 │   │   │   ├── vector_store.py  # FAISS IndexFlatIP + MMR
-│   │   │   ├── llm.py           # Qwen2.5-7B via llama-cpp-python
-│   │   │   ├── pipeline.py      # RAGPipeline (orquestrador)
+│   │   │   ├── lexical.py       # BM25Index (Okapi) — busca lexical
+│   │   │   ├── llm.py           # Qwen2.5-7B + classify_answer + context_char_budget
+│   │   │   ├── pipeline.py      # RAGPipeline — busca híbrida + RRF + assinatura
 │   │   │   ├── text_utils.py    # clean_text, estimate_tokens
 │   │   │   ├── chroma_store.py  # ChromaDB (opcional)
 │   │   │   ├── memory.py        # MemoryOrchestrator (opcional)
@@ -277,12 +288,15 @@ Usuário (Navegador)
    ├── PDFIngester       ← pdfplumber + Camelot
    ├── Embedder          ← intfloat/multilingual-e5-small (384-dim)
    ├── VectorStore       ← FAISS IndexFlatIP
+   ├── BM25Index         ← busca lexical (Okapi, puro Python)
+   ├── RRF Fusion        ← Reciprocal Rank Fusion (k=60)
    ├── MMR Re-ranker     ← λ = 0.6
    └── LLM               ← Qwen2.5-7B-Instruct Q4_K_M (llama-cpp)
         │
    Armazenamento Local
    ├── faiss.index
    ├── metadata.json
+   ├── index_signature.json   ← valida compatibilidade do modelo de embedding
    ├── tables/ (CSV)
    └── models/ (GGUF)
 ```
@@ -292,19 +306,25 @@ Usuário (Navegador)
 ```
 Pergunta do Usuário
         │
-Embed Query (multilingual-e5-small)
+        ├─── Embed Query (multilingual-e5-small)
+        │           │
+        │    FAISS Search — top-10 candidatos (threshold ≥ 0.45)
         │
-FAISS Search — top-10 candidatos
-        │
-Filtro por Threshold (≥ 0.45)
-        │
-MMR Re-rank (λ = 0.6) → top-5 chunks
-        │
-Build Prompt (system + contexto + pergunta)
-        │
-Qwen2.5-7B generate (stream token-a-token)
-        │
-SSE → Frontend → Usuário
+        └─── BM25 Search — top-10 por termos exatos
+                    │
+        Reciprocal Rank Fusion (RRF, k=60)
+        — funde ambos os rankings em lista unificada
+                    │
+        MMR Re-rank (λ = 0.6) → top-5 chunks finais
+                    │
+        Build Prompt (context_char_budget — evita estouro)
+        system prompt + contexto + pergunta + instruções
+                    │
+        Qwen2.5-7B generate (stream token-a-token)
+                    │
+        classify_answer() — corrige falso negativo
+                    │
+        SSE → Frontend → Usuário
 ```
 
 ### Pipeline de Ingestão
@@ -315,6 +335,7 @@ Arquivos PDF (backend/data/pdfs/)
 pdfplumber — extração página a página
         │
 Camelot — detecção de tabelas (lattice → stream → fallback)
+_format_pdfplumber_table() — remove linhas/colunas vazias
         │
 Remoção de headers/footers + extração de notas de rodapé
         │
@@ -325,8 +346,11 @@ SemanticParagraphChunker / RecursiveCharSplitter
 Embed chunks (multilingual-e5-small, batch=32, MPS)
         │
 FAISS IndexFlatIP — adição de vetores
+BM25Index.build() — índice lexical em memória
         │
-Persistência (faiss.index + metadata.json + tables/*.csv)
+Persistência
+├── faiss.index + metadata.json + tables/*.csv
+└── index_signature.json  ← modelo/dim/prefixos atuais
 ```
 
 > Para diagramas completos com sequências e class diagrams, veja [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
@@ -518,6 +542,19 @@ rm -rf backend/data/index
 python3 start.py   # Reindexação automática
 ```
 
+### Aviso de incompatibilidade de embedding no log
+
+Se os logs mostrarem `INCOMPATIBILIDADE de embedding: índice construído com {...}`, o índice foi gerado com um modelo de embedding diferente do configurado atualmente. Scores sem sentido fazem a busca retornar resultados aleatórios ou vazios. Solução:
+
+```bash
+# Reconstrói o índice com o modelo atual
+curl -X POST http://localhost:8000/api/v1/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"force_reindex": true}'
+```
+
+> O arquivo `index_signature.json` é salvo junto ao índice e registra o modelo, dimensão e prefixos usados na geração dos vetores.
+
 ### MPS não ativado (macOS)
 
 ```bash
@@ -571,8 +608,11 @@ RETRIEVAL_FINAL_K=7         # Mais chunks no contexto do LLM
 |-----------|--------|
 | Backend (FastAPI + RAG Pipeline) | ✅ Production-Ready |
 | Frontend (Streamlit + SSE) | ✅ Funcional |
+| Busca híbrida (FAISS + BM25 + RRF) | ✅ Ativada |
 | Extração de tabelas (Camelot) | ✅ Com fallback automático |
 | Aceleração MPS (Apple Silicon) | ✅ Ativada |
+| Guarda de falso negativo (LLM) | ✅ Ativada |
+| Validação de assinatura do índice | ✅ Automática no startup |
 | Testes unitários | ✅ 109/109 passing |
 | Documentação técnica | ✅ 20+ diagramas Mermaid |
 | Integrações ChromaDB/MongoDB | ⚙️ Opcionais (desativadas por padrão) |

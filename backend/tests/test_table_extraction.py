@@ -3,10 +3,6 @@ from pathlib import Path
 
 import pandas as pd
 import pytest
-
-# Ambos os testes monkeypatcham camelot.read_pdf, o que exige o pacote
-# instalado. Em ambientes sem camelot a ingestão degrada para pdfplumber
-# (_HAS_CAMELOT=False), então pular aqui é o comportamento coerente.
 pytest.importorskip("camelot", reason="camelot não instalado neste ambiente")
 
 
@@ -93,7 +89,6 @@ def test_pdfplumber_fallback_when_camelot_fails(monkeypatch, tmp_path):
 
     monkeypatch.setattr('app.core.ingestion._HAS_CAMELOT', True)
 
-    # Tabela com conteúdo acima do filtro de fragmentos (60 chars) da ingestão.
     sample_table = [
         ["indicador econômico", "valor de referência"],
         ["inflação acumulada em doze meses", "5,35%"],
@@ -115,7 +110,6 @@ def test_pdfplumber_fallback_when_camelot_fails(monkeypatch, tmp_path):
     ing = PDFIngester(index_dir=tmp_path / "backend" / "data" / "index")
     chunks = list(ing.load_pdf(pdf_path))
 
-    # Fallback do pdfplumber deve produzir o conteúdo da tabela como chunk.
     table_chunks = [c for c in chunks if c.is_table]
     assert table_chunks, "pdfplumber fallback produced no table chunk"
     assert any("inflação acumulada em doze meses | 5,35%" in c.text for c in table_chunks)

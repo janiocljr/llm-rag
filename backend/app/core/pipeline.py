@@ -94,13 +94,6 @@ class RAGPipeline:
         path.write_text(json.dumps(self._index_signature(), ensure_ascii=False, indent=2))
 
     def _check_index_signature(self) -> None:
-        """Detecta índice construído com outro modelo/protocolo de embedding.
-
-        Buscar num índice cujos vetores foram gerados com modelo ou prefixos
-        diferentes dos atuais produz scores sem significado — sintoma típico:
-        nenhum resultado relevante. Nesse caso o índice precisa ser
-        reconstruído via POST /api/v1/ingest {"force_reindex": true}.
-        """
         if self.vector_store.size == 0:
             return
 
@@ -214,12 +207,6 @@ class RAGPipeline:
         top_k: int | None = None,
         threshold: float | None = None,
     ) -> tuple[np.ndarray, list[RetrievedChunk], list[RetrievedChunk]]:
-        """Busca híbrida: vetorial (FAISS) + lexical (BM25), fusão RRF, MMR.
-
-        A busca vetorial captura semântica; a lexical captura termos exatos
-        (números, datas, siglas) que embeddings pequenos não distinguem.
-        Retorna (query_embedding, candidatos_fundidos, chunks_finais).
-        """
         top_k = top_k or self.settings.retrieval_top_k
         threshold = (
             threshold
@@ -238,7 +225,6 @@ class RAGPipeline:
         )
         lexical_hits = self.lexical_index.search(question, top_k=top_k)
 
-        # Reciprocal Rank Fusion: robusta a escalas distintas de score.
         rrf_k = 60
         fused: dict[int, float] = {}
         for rank, rc in enumerate(vector_hits):

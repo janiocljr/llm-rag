@@ -9,10 +9,6 @@ def truncate(text: str, max_words: int = 40) -> str:
 
 
 def score_tier(score: float) -> str:
-    """Classifica o score de similaridade em high/mid/low.
-
-    Fonte única para a escala de cor dos badges e barras de relevância.
-    """
     if score > 0.6:
         return "high"
     if score > 0.5:

@@ -1,9 +1,3 @@
-"""Chat components — histórico, empty state e sugestões.
-
-As mensagens usam st.chat_message + st.markdown (sem unsafe_allow_html
-no conteúdo), o que garante renderização de Markdown e sanitização de
-HTML vindo do usuário ou dos documentos.
-"""
 from __future__ import annotations
 
 import streamlit as st
@@ -94,7 +88,6 @@ def render_empty_state() -> None:
 
 
 def render_suggestions() -> str | None:
-    """Chips de perguntas sugeridas. Retorna a pergunta clicada ou None."""
     st.markdown('<p class="hero-hint">Experimente perguntar</p>', unsafe_allow_html=True)
 
     clicked: str | None = None

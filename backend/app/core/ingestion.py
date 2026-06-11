@@ -178,11 +178,6 @@ class PDFIngester:
 
     @staticmethod
     def _format_pdfplumber_table(table: list[list]) -> str:
-        """Tabela → texto compacto: remove linhas e colunas inteiramente vazias.
-
-        Tabelas de PDF chegam cheias de células None/vazias; mantê-las gera
-        chunks de "| | |" que poluem tanto o embedding quanto o BM25.
-        """
         rows = []
         for row in table:
             cells = [(cell or "").strip().replace("\n", " ") for cell in row]
@@ -232,20 +227,12 @@ class PDFIngester:
     def _extract_tables_from_page(
         self, path: Path, page_num: int, page
     ) -> list[tuple[str, Optional[str]]]:
-        """Retorna [(texto_da_tabela_com_cabeçalho, csv_path_relativo)].
-
-        O cabeçalho identifica origem (documento/página) sem boilerplate:
-        descrições genéricas e caminhos de arquivo no texto viram ruído de
-        embedding. O caminho do CSV vai no metadado table_csv_path do chunk.
-        """
         extracted = self._extract_tables_with_camelot(path, page_num)
         if not extracted:
             extracted = self._extract_tables_with_pdfplumber(path, page_num, page)
 
         results = []
         for t_idx, (table_text, csv_path) in enumerate(extracted):
-            # Tabelas-fragmento (uma célula, legendas de gráfico) não têm
-            # valor isolado e, por serem curtíssimas, dominam o ranking BM25.
             if len(table_text.strip()) < 60:
                 continue
             header = f"[Tabela {t_idx + 1} — página {page_num} de {path.name}]\n"
@@ -272,7 +259,6 @@ class PDFIngester:
             csv_path = self._tables_dir / filename
             df.to_csv(csv_path, index=False, encoding="utf-8")
             logger.debug(f"Saved table to: {csv_path}")
-            # Caminho relativo ao index_dir: portátil entre máquinas/containers.
             return str(Path("tables") / filename)
         except Exception as e:
             logger.warning(f"Failed to save table CSV: {e}")

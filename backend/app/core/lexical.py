@@ -1,11 +1,3 @@
-"""Índice lexical BM25 (Okapi) em Python puro — sem dependências externas.
-
-Complementa a busca vetorial: embeddings semânticos são fracos para
-correspondência exata de números, datas e siglas ("julho de 2025",
-"IPCA", "5,35%"), exatamente o tipo de termo que aparece em perguntas
-factuais sobre documentos econômicos. O pipeline funde os dois rankings
-via Reciprocal Rank Fusion (RRF).
-"""
 from __future__ import annotations
 
 import math
@@ -14,9 +6,6 @@ import unicodedata
 from collections import Counter
 
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
-
-# Stopwords mínimas de PT-BR: apenas palavras funcionais muito frequentes.
-# Lista curta de propósito — remover demais prejudica perguntas curtas.
 _STOPWORDS = frozenset(
     "a o e de da do das dos em um uma uns umas para com que no na nos nas "
     "por se ao aos as os sua seu suas seus foi sao ser esta este isso essa "
@@ -25,7 +14,6 @@ _STOPWORDS = frozenset(
 
 
 def tokenize(text: str) -> list[str]:
-    """Minúsculas, sem acentos, tokens alfanuméricos, sem stopwords."""
     text = unicodedata.normalize("NFKD", text.lower())
     text = "".join(c for c in text if not unicodedata.combining(c))
     return [t for t in _TOKEN_RE.findall(text) if t not in _STOPWORDS]
@@ -64,7 +52,6 @@ class BM25Index:
         }
 
     def search(self, query: str, top_k: int) -> list[tuple[int, float]]:
-        """Retorna [(posição_do_documento, score_bm25)] decrescente, score > 0."""
         if not self._doc_freqs:
             return []
 

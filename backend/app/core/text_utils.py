@@ -8,8 +8,6 @@ _PAGE_NUM = re.compile(r"^\s*\d+\s*$", re.MULTILINE)
 
 
 def clean_text(raw: str) -> str:
-    # NFKC desfaz ligaduras tipográficas de PDF (ﬁ→fi, ﬂ→fl) que
-    # poluem chunks e degradam a qualidade dos embeddings.
     text = unicodedata.normalize("NFKC", raw)
     text = _HYPHEN_EOL.sub(r"\1", text)
     text = _PAGE_NUM.sub("", text)

@@ -8,7 +8,6 @@ from app.core.config import Settings
 
 
 def _default_settings() -> Settings:
-    """Settings sem carregar o .env local — testa os defaults da classe."""
     return Settings(_env_file=None)
 
 

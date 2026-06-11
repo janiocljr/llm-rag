@@ -78,36 +78,20 @@ _SENTINEL_TRIM = " \n\t.—–-,;:"
 
 
 def classify_answer(raw: str) -> tuple[str, bool]:
-    """Corrige o falso negativo de prefixo de modelos pequenos.
-
-    LLMs quantizados tendem a iniciar com a frase de "não encontrei" e em
-    seguida apresentar o dado correto com citação ("Não encontrei... Segundo
-    [Fonte 2, p. 6], o IPCA alcançou 5,35%..."). Quando a negativa vem
-    seguida de conteúdo substantivo, ela é espúria: removemos o prefixo e
-    classificamos como encontrado. Retorna (texto_final, found).
-    """
     text = raw.strip()
     if NOT_FOUND_SENTINEL not in text:
         return text, True
 
     if text.startswith(NOT_FOUND_SENTINEL):
         rest = text[len(NOT_FOUND_SENTINEL):].lstrip(_SENTINEL_TRIM)
-        # A cauda só é resposta de verdade se citar fonte — negativas
-        # elaboradas ("os trechos não contêm dados sobre X") não contam.
         if len(rest) >= 40 and "[Fonte" in rest:
             return rest, True
         return text, False
 
-    # Sentinel no meio/fim: houve resposta se o texto cita alguma fonte.
     return text, "[Fonte" in text
 
 
 def stream_with_false_negative_guard(token_iter):
-    """Versão streaming do classify_answer.
-
-    Bufferiza apenas o início do stream (até decidir se começa com o
-    sentinel); o restante flui token a token normalmente.
-    """
     it = iter(token_iter)
     buf = ""
 
@@ -115,21 +99,18 @@ def stream_with_false_negative_guard(token_iter):
         buf += token
         s = buf.lstrip()
         if s.startswith(NOT_FOUND_SENTINEL):
-            # Sentinel no início: acumular o restante para decidir se a
-            # negativa é espúria (segue resposta com citação) ou genuína.
             rest = s[len(NOT_FOUND_SENTINEL):]
             for token2 in it:
                 rest += token2
             stripped = rest.lstrip(_SENTINEL_TRIM)
             if len(stripped) >= 40 and "[Fonte" in stripped:
-                yield stripped  # negativa espúria — entrega só o conteúdo
+                yield stripped
             elif stripped:
-                yield NOT_FOUND_SENTINEL + rest  # negativa elaborada — íntegra
+                yield NOT_FOUND_SENTINEL + rest
             else:
                 yield NOT_FOUND_SENTINEL
             return
         if not NOT_FOUND_SENTINEL.startswith(s):
-            # Já não é prefixo possível do sentinel — stream normal.
             yield buf
             yield from it
             return
@@ -139,15 +120,6 @@ def stream_with_false_negative_guard(token_iter):
 
 
 def context_char_budget(context_length: int, max_new_tokens: int) -> int:
-    """Orçamento de caracteres para o bloco de contexto do prompt.
-
-    Reserva espaço para a resposta (max_new_tokens) e para system prompt,
-    instruções e pergunta (~800 tokens), convertendo o restante a uma taxa
-    conservadora de ~3 chars/token para PT-BR. Sem esse limite, consultas
-    que recuperam chunks longos estouram a janela do modelo e a geração
-    falha com ValueError — na rota de streaming, o stream morre sem
-    resposta alguma.
-    """
     reserved_tokens = max_new_tokens + 800
     return max(1_000, (context_length - reserved_tokens) * 3)
 

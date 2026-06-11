@@ -1,10 +1,8 @@
-"""Diagrama SVG do pipeline RAG, alinhado aos tokens do design system."""
 from __future__ import annotations
 
 import streamlit as st
 
 
-# (linhas do título, legenda da etapa, cor do indicador)
 _NODES: list[tuple[list[str], str, str]] = [
     (["PDF"], "1 · Ingestão", "#6366F1"),
     (["Chunking"], "2 · Divisão", "#6366F1"),

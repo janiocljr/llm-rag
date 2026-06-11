@@ -29,8 +29,6 @@ class Settings(BaseSettings):
     retrieval_top_k: int = Field(default=20)
     retrieval_final_k: int = Field(default=5)
     similarity_threshold: float = Field(default=0.50)
-    # Com a relevância vinda da fusão RRF normalizada, 0.75 prioriza
-    # relevância sem abrir mão de diversidade entre documentos.
     mmr_lambda: float = Field(default=0.75)
 
     llm_model_path: str = Field(default="models/qwen2.5-7b-instruct-q4_k_m.gguf")

@@ -1,8 +1,3 @@
-"""Sidebar — conexão, parâmetros de recuperação, índice e exibição.
-
-Resultados de ações (teste de conexão, estatísticas, ingestão) são
-persistidos em st.session_state para não desaparecerem no rerun seguinte.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -79,7 +74,6 @@ def _render_connection_status(demo_mode: bool) -> None:
 
 
 def render_sidebar() -> SidebarState:
-    """Render the full sidebar and return current state."""
     state = SidebarState()
 
     with st.sidebar:

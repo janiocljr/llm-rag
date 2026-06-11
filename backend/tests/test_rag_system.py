@@ -505,9 +505,6 @@ class TestAPI:
         )
 
         mock_pipeline = MagicMock(spec=RAGPipeline)
-
-        # vector_store é atributo de instância (criado no __init__), logo não
-        # faz parte do spec da classe — precisa ser atribuído explicitamente.
         mock_pipeline.vector_store = MagicMock()
         mock_pipeline.vector_store.size = 5
 
@@ -533,10 +530,6 @@ class TestAPI:
             embedding_model="BAAI/bge-small-en-v1.5",
             embedding_dim=384,
         )
-
-        # O lifespan do app constrói o RAGPipeline real (modelos pesados) e
-        # sobrescreve app.state.pipeline — por isso o patch precisa interceptar
-        # a construção, não apenas atribuir o mock antes do TestClient.
         with patch("app.main.RAGPipeline", return_value=mock_pipeline), \
              patch("app.main.MemoryOrchestrator", side_effect=RuntimeError("disabled in tests")):
             with TestClient(app) as c:

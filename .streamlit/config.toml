@@ -1,9 +1,3 @@
-# ════════════════════════════════════════════════════════════════
-# RAG Chat — Streamlit native theme
-# Define o tema base no nível do framework para que a UI seja
-# consistente independentemente do modo claro/escuro do sistema.
-# A camada fina de CSS em assets/styles.css complementa estes tokens.
-# ════════════════════════════════════════════════════════════════
 
 [theme]
 base = "dark"

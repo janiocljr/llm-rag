@@ -1,4 +1,3 @@
-"""Testes do guard contra falso "não encontrei" (classify_answer e streaming)."""
 from app.core.llm import (
     NOT_FOUND_SENTINEL,
     classify_answer,
@@ -41,8 +40,6 @@ class TestClassifyAnswer:
         assert found is False
 
     def test_elaborate_negative_without_citation_stays_not_found(self):
-        # Caso real: o modelo reformula a negativa com uma explicação longa,
-        # mas sem citar fonte — continua sendo "não encontrado" genuíno.
         raw = (
             NOT_FOUND_SENTINEL
             + " Os trechos fornecidos não contêm dados específicos sobre a "

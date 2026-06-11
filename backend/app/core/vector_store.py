@@ -65,7 +65,6 @@ class VectorStore:
         return results
 
     def score_at(self, position: int, query_embedding: np.ndarray) -> float:
-        """Similaridade coseno entre a query e o vetor na posição dada."""
         emb = self._index.reconstruct(int(position))
         return float(np.dot(emb, query_embedding.reshape(-1)))
 
@@ -85,14 +84,6 @@ class VectorStore:
 
         candidate_embeddings = self._get_embeddings_for_chunks(candidates)
         q = query_embedding.reshape(-1)
-
-        # Modelos como o e5 comprimem os cosenos num intervalo estreito
-        # (~0.75-0.90 para todo o corpus). Sem normalização, o termo de
-        # redundância domina as diferenças minúsculas de relevância e o MMR
-        # passa a descartar exatamente os chunks mais relevantes. Min-max
-        # sobre os candidatos devolve peso real ao termo de relevância.
-        # relevance_scores permite usar um ranking externo (ex.: fusão RRF
-        # da busca híbrida) como termo de relevância.
         if relevance_scores is not None:
             raw_relevances = np.asarray(relevance_scores, dtype=np.float64)
         else:

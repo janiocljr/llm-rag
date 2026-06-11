@@ -1,12 +1,3 @@
-# =============================================================================
-# RAG System v3 — Dockerfile
-# =============================================================================
-# Multi-stage build:
-#   Stage 1 (builder): install Python deps into a venv
-#   Stage 2 (runtime): lean image with just the venv + app code
-# =============================================================================
-
-# ── Stage 1: Builder ──────────────────────────────────────────────────────────
 FROM python:3.11-slim AS builder
 
 WORKDIR /build
@@ -26,7 +17,6 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM python:3.11-slim AS runtime
 
 WORKDIR /app

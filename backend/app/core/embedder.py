@@ -16,14 +16,6 @@ _E5_DOCUMENT_PREFIX = "passage: "
 
 
 def _resolve_prefixes(model_name: str) -> tuple[str, str]:
-    """Retorna (query_prefix, document_prefix) conforme o protocolo do modelo.
-
-    Modelos de embedding assimétricos são treinados com prefixos fixos e
-    degradam fortemente sem eles:
-      - família e5 (intfloat/*e5*): "query: " / "passage: " obrigatórios;
-      - BGE inglês v1.5 (bge-*-en*): instrução apenas na query;
-      - bge-m3 e demais: sem prefixo.
-    """
     name = model_name.lower()
     if "e5" in name:
         return _E5_QUERY_PREFIX, _E5_DOCUMENT_PREFIX

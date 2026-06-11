@@ -94,15 +94,12 @@ class APIClient:
 
 
     def health(self) -> dict[str, Any]:
-        """GET /health"""
         return self._get("/health")
 
     def stats(self) -> dict[str, Any]:
-        """GET /api/v1/stats"""
         return self._get("/api/v1/stats")
 
     def ingest(self, force_reindex: bool = False) -> dict[str, Any]:
-        """POST /api/v1/ingest"""
         return self._post("/api/v1/ingest", {"force_reindex": force_reindex}, timeout=self._timeout_long)
 
     def query(
@@ -111,7 +108,6 @@ class APIClient:
         top_k: int = 5,
         similarity_threshold: float = 0.35,
     ) -> dict[str, Any]:
-        """POST /api/v1/query"""
         return self._post(
             "/api/v1/query",
             {
