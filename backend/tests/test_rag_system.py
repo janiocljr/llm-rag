@@ -429,6 +429,10 @@ class TestHallucinationGuard:
 
 class TestPromptConstruction:
 
+    @staticmethod
+    def _flatten(messages: list[dict]) -> str:
+        return "\n\n".join(m["content"] for m in messages)
+
     def test_prompt_contains_question(self):
         from app.core.llm import build_messages
         from app.models.schemas import DocumentChunk, RetrievedChunk
@@ -440,30 +444,34 @@ class TestPromptConstruction:
         )
         rc = RetrievedChunk(chunk=chunk, score=0.85)
 
-        prompt = build_messages(
+        messages = build_messages(
             question="How is AI used?",
             retrieved_chunks=[rc],
             system_prompt="Answer only from context.",
         )
 
+        assert messages[0]["role"] == "system"
+        assert messages[0]["content"] == "Answer only from context."
+
+        prompt = self._flatten(messages)
         assert "How is AI used?" in prompt
         assert "ai.pdf" in prompt
-        assert "Page 2" in prompt
+        assert "Página 2" in prompt
         assert "AI is transforming industries." in prompt
 
     def test_prompt_with_no_chunks(self):
         from app.core.llm import build_messages
 
-        prompt = build_messages(
+        messages = build_messages(
             question="What is X?",
             retrieved_chunks=[],
             system_prompt="Answer only from context.",
         )
 
-        assert "No relevant context found" in prompt
+        assert "Nenhum contexto relevante encontrado" in self._flatten(messages)
 
     def test_multiple_sources_in_prompt(self):
-        from app.core.llm import build_prompt
+        from app.core.llm import build_messages
         from app.models.schemas import DocumentChunk, RetrievedChunk
 
         chunks = [
@@ -479,7 +487,7 @@ class TestPromptConstruction:
             for i in range(3)
         ]
 
-        prompt = build_messages("Test question", chunks, "Be precise.")
+        prompt = self._flatten(build_messages("Test question", chunks, "Be precise."))
         for i in range(3):
             assert f"doc{i}.pdf" in prompt, f"Source doc{i}.pdf missing from prompt"
 
@@ -498,6 +506,9 @@ class TestAPI:
 
         mock_pipeline = MagicMock(spec=RAGPipeline)
 
+        # vector_store é atributo de instância (criado no __init__), logo não
+        # faz parte do spec da classe — precisa ser atribuído explicitamente.
+        mock_pipeline.vector_store = MagicMock()
         mock_pipeline.vector_store.size = 5
 
         mock_pipeline.query.return_value = QueryResponse(
@@ -523,10 +534,13 @@ class TestAPI:
             embedding_dim=384,
         )
 
-        app.state.pipeline = mock_pipeline
-
-        with TestClient(app) as c:
-            yield c
+        # O lifespan do app constrói o RAGPipeline real (modelos pesados) e
+        # sobrescreve app.state.pipeline — por isso o patch precisa interceptar
+        # a construção, não apenas atribuir o mock antes do TestClient.
+        with patch("app.main.RAGPipeline", return_value=mock_pipeline), \
+             patch("app.main.MemoryOrchestrator", side_effect=RuntimeError("disabled in tests")):
+            with TestClient(app) as c:
+                yield c
 
     def test_health_endpoint(self, client):
         response = client.get("/health")

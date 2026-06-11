@@ -1,0 +1,6 @@
+{
+  "embedding_model": "intfloat/multilingual-e5-small",
+  "embedding_dim": 384,
+  "query_prefix": "query: ",
+  "document_prefix": "passage: "
+}

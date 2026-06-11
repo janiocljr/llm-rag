@@ -2,7 +2,14 @@ import numpy as np
 import pytest
 from unittest.mock import MagicMock, patch
 
-from app.core.embedder import Embedder, _resolve_device
+from app.core.embedder import (
+    Embedder,
+    _resolve_device,
+    _resolve_prefixes,
+    _BGE_EN_QUERY_PREFIX,
+    _E5_DOCUMENT_PREFIX,
+    _E5_QUERY_PREFIX,
+)
 from app.models.schemas import DocumentChunk
 
 
@@ -39,23 +46,48 @@ class TestResolveDevice:
         assert _resolve_device("auto") == "cpu"
 
 
+class TestResolvePrefixes:
+    """Cada família de modelo de embedding tem um protocolo de prefixo próprio."""
+
+    def test_e5_models_use_query_and_passage_prefixes(self) -> None:
+        assert _resolve_prefixes("intfloat/multilingual-e5-small") == (
+            _E5_QUERY_PREFIX,
+            _E5_DOCUMENT_PREFIX,
+        )
+        assert _resolve_prefixes("intfloat/e5-large-v2") == (
+            _E5_QUERY_PREFIX,
+            _E5_DOCUMENT_PREFIX,
+        )
+
+    def test_bge_en_uses_instruction_prefix_on_query_only(self) -> None:
+        assert _resolve_prefixes("BAAI/bge-large-en-v1.5") == (_BGE_EN_QUERY_PREFIX, "")
+
+    def test_bge_m3_uses_no_prefixes(self) -> None:
+        assert _resolve_prefixes("BAAI/bge-m3") == ("", "")
+
+    def test_unknown_model_uses_no_prefixes(self) -> None:
+        assert _resolve_prefixes("sentence-transformers/all-MiniLM-L6-v2") == ("", "")
+
+
 class TestEmbedder:
 
     @pytest.fixture
     def mock_sentence_transformer(self):
         with patch("app.core.embedder.SentenceTransformer") as mock:
             model = MagicMock()
-            model.get_sentence_embedding_dimension.return_value = 1024
-            model.encode.return_value = np.random.default_rng(1).random((1, 1024)).astype(np.float32)
+            model.get_sentence_embedding_dimension.return_value = 384
+            model.encode.return_value = np.random.default_rng(1).random((1, 384)).astype(np.float32)
             mock.return_value = model
             yield mock
 
     @patch("app.core.embedder._resolve_device", return_value="cpu")
     def test_embedder_initialization(self, mock_resolve, mock_sentence_transformer) -> None:
-        embedder = Embedder(model_name="BAAI/bge-m3", batch_size=64, device="auto")
-        assert embedder.model_name == "BAAI/bge-m3"
+        embedder = Embedder(model_name="intfloat/multilingual-e5-small", batch_size=64, device="auto")
+        assert embedder.model_name == "intfloat/multilingual-e5-small"
         assert embedder.batch_size == 64
-        assert embedder.dim == 1024
+        assert embedder.dim == 384
+        assert embedder.query_prefix == _E5_QUERY_PREFIX
+        assert embedder.document_prefix == _E5_DOCUMENT_PREFIX
 
     @patch("app.core.embedder._resolve_device", return_value="cpu")
     def test_embed_documents(self, mock_resolve, mock_sentence_transformer) -> None:
@@ -84,52 +116,63 @@ class TestEmbedder:
         ]
 
         with patch.object(embedder, "_encode") as mock_encode:
-            mock_encode.return_value = np.zeros((2, 1024), dtype=np.float32)
+            mock_encode.return_value = np.zeros((2, 384), dtype=np.float32)
             result = embedder.embed_documents(chunks)
-            assert result.shape == (2, 1024)
-            assert mock_encode.called
+            assert result.shape == (2, 384)
+            mock_encode.assert_called_once_with(
+                ["First document", "Second document"], prefix=_E5_DOCUMENT_PREFIX
+            )
 
     @patch("app.core.embedder._resolve_device", return_value="cpu")
     def test_embed_query(self, mock_resolve, mock_sentence_transformer) -> None:
         embedder = Embedder()
 
         with patch.object(embedder, "_encode") as mock_encode:
-            mock_encode.return_value = np.zeros((1, 1024), dtype=np.float32)
+            mock_encode.return_value = np.zeros((1, 384), dtype=np.float32)
             result = embedder.embed_query("test query")
-            assert result.shape == (1, 1024)
-            assert mock_encode.called
+            assert result.shape == (1, 384)
+            mock_encode.assert_called_once_with(["test query"], prefix=_E5_QUERY_PREFIX)
 
     @patch("app.core.embedder._resolve_device", return_value="cpu")
     def test_encode_empty_texts(self, mock_resolve, mock_sentence_transformer) -> None:
         embedder = Embedder()
-        result = embedder._encode([], is_query=False)
-        assert result.shape == (0, 1024)
+        result = embedder._encode([], prefix=_E5_DOCUMENT_PREFIX)
+        assert result.shape == (0, 384)
         assert result.dtype == np.float32
 
     @patch("app.core.embedder._resolve_device", return_value="cpu")
-    def test_encode_with_query_prefix(self, mock_resolve, mock_sentence_transformer) -> None:
-        embedder = Embedder()
-        texts = ["test query"]
+    def test_encode_applies_e5_query_prefix(self, mock_resolve, mock_sentence_transformer) -> None:
+        embedder = Embedder(model_name="intfloat/multilingual-e5-small")
         with patch.object(embedder._model, "encode") as mock_encode:
-            mock_encode.return_value = np.zeros((1, 1024), dtype=np.float32)
-            embedder._encode(texts, is_query=True)
+            mock_encode.return_value = np.zeros((1, 384), dtype=np.float32)
+            embedder._encode(["test query"], prefix=embedder.query_prefix)
 
             called_texts = mock_encode.call_args[0][0]
-            assert "Represent this sentence" in called_texts[0]
+            assert called_texts[0] == "query: test query"
+
+    @patch("app.core.embedder._resolve_device", return_value="cpu")
+    def test_encode_applies_e5_document_prefix(self, mock_resolve, mock_sentence_transformer) -> None:
+        embedder = Embedder(model_name="intfloat/multilingual-e5-small")
+        with patch.object(embedder._model, "encode") as mock_encode:
+            mock_encode.return_value = np.zeros((1, 384), dtype=np.float32)
+            embedder._encode(["some passage"], prefix=embedder.document_prefix)
+
+            called_texts = mock_encode.call_args[0][0]
+            assert called_texts[0] == "passage: some passage"
 
     @patch("app.core.embedder._resolve_device", return_value="cpu")
     def test_encode_returns_float32(self, mock_resolve, mock_sentence_transformer) -> None:
         embedder = Embedder()
         with patch.object(embedder._model, "encode") as mock_encode:
-            mock_encode.return_value = np.zeros((1, 1024), dtype=np.float64)
-            result = embedder._encode(["test"], is_query=False)
+            mock_encode.return_value = np.zeros((1, 384), dtype=np.float64)
+            result = embedder._encode(["test"])
             assert result.dtype == np.float32
 
     @patch("app.core.embedder._resolve_device", return_value="cpu")
     def test_encode_batch_size(self, mock_resolve, mock_sentence_transformer) -> None:
         embedder = Embedder(batch_size=32)
         with patch.object(embedder._model, "encode") as mock_encode:
-            mock_encode.return_value = np.zeros((1, 1024), dtype=np.float32)
-            embedder._encode(["test"], is_query=False)
+            mock_encode.return_value = np.zeros((1, 384), dtype=np.float32)
+            embedder._encode(["test"])
 
             assert mock_encode.call_args[1]["batch_size"] == 32

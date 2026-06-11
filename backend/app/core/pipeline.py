@@ -1,11 +1,21 @@
+import json
 import logging
 import time
 from pathlib import Path
 
+import numpy as np
+
 from app.core.config import Settings
 from app.core.embedder import Embedder
 from app.core.ingestion import PDFIngester
-from app.core.llm import LocalLLM, build_messages, NOT_FOUND_SENTINEL
+from app.core.lexical import BM25Index
+from app.core.llm import (
+    LocalLLM,
+    NOT_FOUND_SENTINEL,
+    build_messages,
+    classify_answer,
+    context_char_budget,
+)
 from app.core.vector_store import VectorStore
 from app.core.memory import get_pdf_store, get_doc_store, get_session_store
 import uuid
@@ -20,6 +30,8 @@ from app.models.schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+_SIGNATURE_FILE = "index_signature.json"
 
 
 class RAGPipeline:
@@ -56,6 +68,71 @@ class RAGPipeline:
             index_dir=settings.index_dir,
         )
 
+        self.lexical_index = BM25Index()
+        self._chunk_pos: dict[str, int] = {}
+        self._rebuild_lexical_index()
+
+        self._check_index_signature()
+
+    def _rebuild_lexical_index(self) -> None:
+        chunks = self.vector_store.chunks
+        self.lexical_index.build([c.text for c in chunks])
+        self._chunk_pos = {c.chunk_id: i for i, c in enumerate(chunks)}
+        if chunks:
+            logger.info(f"BM25 lexical index built over {len(chunks)} chunks")
+
+    def _index_signature(self) -> dict:
+        return {
+            "embedding_model": self.embedder.model_name,
+            "embedding_dim": self.embedder.dim,
+            "query_prefix": self.embedder.query_prefix,
+            "document_prefix": self.embedder.document_prefix,
+        }
+
+    def _save_index_signature(self) -> None:
+        path = self.settings.index_dir / _SIGNATURE_FILE
+        path.write_text(json.dumps(self._index_signature(), ensure_ascii=False, indent=2))
+
+    def _check_index_signature(self) -> None:
+        """Detecta índice construído com outro modelo/protocolo de embedding.
+
+        Buscar num índice cujos vetores foram gerados com modelo ou prefixos
+        diferentes dos atuais produz scores sem significado — sintoma típico:
+        nenhum resultado relevante. Nesse caso o índice precisa ser
+        reconstruído via POST /api/v1/ingest {"force_reindex": true}.
+        """
+        if self.vector_store.size == 0:
+            return
+
+        path = self.settings.index_dir / _SIGNATURE_FILE
+        current = self._index_signature()
+        if not path.exists():
+            logger.warning(
+                "Índice existente sem assinatura de embedding (%d chunks). "
+                "Ele pode ter sido construído com protocolo antigo — "
+                "recomendado reconstruir: POST /api/v1/ingest {\"force_reindex\": true}. "
+                "Assinatura atual: %s",
+                self.vector_store.size,
+                current,
+            )
+            return
+
+        try:
+            saved = json.loads(path.read_text())
+        except (json.JSONDecodeError, OSError):
+            logger.warning("Assinatura do índice ilegível em %s", path)
+            return
+
+        if saved != current:
+            logger.warning(
+                "INCOMPATIBILIDADE de embedding: índice construído com %s, "
+                "mas a configuração atual é %s. As buscas retornarão resultados "
+                "ruins ou vazios até reconstruir o índice: "
+                "POST /api/v1/ingest {\"force_reindex\": true}.",
+                saved,
+                current,
+            )
+
     def ingest(self, force_reindex: bool = False) -> IngestResponse:
         t0 = time.perf_counter()
 
@@ -82,6 +159,8 @@ class RAGPipeline:
 
         self.vector_store.add(chunks, embeddings)
         self.vector_store.save()
+        self._save_index_signature()
+        self._rebuild_lexical_index()
 
         try:
             pdf_store = get_pdf_store()
@@ -129,36 +208,86 @@ class RAGPipeline:
             latency_ms=elapsed_ms,
         )
 
-    def query(self, request: QueryRequest) -> QueryResponse:
-        t0 = time.perf_counter()
+    def retrieve(
+        self,
+        question: str,
+        top_k: int | None = None,
+        threshold: float | None = None,
+    ) -> tuple[np.ndarray, list[RetrievedChunk], list[RetrievedChunk]]:
+        """Busca híbrida: vetorial (FAISS) + lexical (BM25), fusão RRF, MMR.
 
-        top_k = request.top_k or self.settings.retrieval_top_k
-        threshold = request.similarity_threshold or self.settings.similarity_threshold
+        A busca vetorial captura semântica; a lexical captura termos exatos
+        (números, datas, siglas) que embeddings pequenos não distinguem.
+        Retorna (query_embedding, candidatos_fundidos, chunks_finais).
+        """
+        top_k = top_k or self.settings.retrieval_top_k
+        threshold = (
+            threshold
+            if threshold is not None
+            else self.settings.similarity_threshold
+        )
 
         t_start = time.perf_counter()
-        query_embedding = self.embedder.embed_query(request.question)
+        query_embedding = self.embedder.embed_query(question)
         t_embed = time.perf_counter()
 
-        candidates = self.vector_store.search(
+        vector_hits = self.vector_store.search(
             query_embedding=query_embedding,
             top_k=top_k,
             threshold=threshold,
         )
+        lexical_hits = self.lexical_index.search(question, top_k=top_k)
+
+        # Reciprocal Rank Fusion: robusta a escalas distintas de score.
+        rrf_k = 60
+        fused: dict[int, float] = {}
+        for rank, rc in enumerate(vector_hits):
+            pos = self._chunk_pos[rc.chunk.chunk_id]
+            fused[pos] = fused.get(pos, 0.0) + 1.0 / (rrf_k + rank + 1)
+        for rank, (pos, _) in enumerate(lexical_hits):
+            fused[pos] = fused.get(pos, 0.0) + 1.0 / (rrf_k + rank + 1)
+
         t_retr = time.perf_counter()
-        logger.info("Embedding time: %.3fs — retrieved %d candidates",
-                    t_embed - t_start, len(candidates))
-        logger.info("Candidate scores: %s",
-                    [round(c.score, 4) for c in candidates])
+        logger.info(
+            "Embedding: %.3fs — vetorial: %d hits, lexical: %d hits, fundidos: %d",
+            t_embed - t_start, len(vector_hits), len(lexical_hits), len(fused),
+        )
+
+        if not fused:
+            return query_embedding, [], []
+
+        chunks = self.vector_store.chunks
+        ranked = sorted(fused.items(), key=lambda x: x[1], reverse=True)[:top_k]
+        candidates = [
+            RetrievedChunk(
+                chunk=chunks[pos],
+                score=self.vector_store.score_at(pos, query_embedding),
+            )
+            for pos, _ in ranked
+        ]
 
         final_chunks = self.vector_store.mmr_rerank(
             candidates=candidates,
             query_embedding=query_embedding,
             final_k=self.settings.retrieval_final_k,
             lambda_=self.settings.mmr_lambda,
+            relevance_scores=[score for _, score in ranked],
+        )
+        logger.info(
+            "MMR re-rank: %.3fs — final chunks: %d",
+            time.perf_counter() - t_retr, len(final_chunks),
+        )
+        return query_embedding, candidates, final_chunks
+
+    def query(self, request: QueryRequest) -> QueryResponse:
+        t0 = time.perf_counter()
+
+        _, _, final_chunks = self.retrieve(
+            question=request.question,
+            top_k=request.top_k,
+            threshold=request.similarity_threshold,
         )
         t_mmr = time.perf_counter()
-        logger.info("MMR re-rank time: %.3fs — final chunks: %d",
-                    t_mmr - t_retr, len(final_chunks))
 
         found = len(final_chunks) > 0
 
@@ -166,6 +295,10 @@ class RAGPipeline:
             question=request.question,
             retrieved_chunks=final_chunks,
             system_prompt=self.settings.system_prompt,
+            max_context_chars=context_char_budget(
+                self.settings.llm_context_length,
+                self.settings.llm_max_new_tokens,
+            ),
         )
         prompt_str = "\n\n".join(
             f"[{m['role'].upper()}]\n{m['content']}" for m in messages
@@ -179,10 +312,12 @@ class RAGPipeline:
             raw_answer = self.llm.generate(messages)
             gen_end = time.perf_counter()
             logger.info("LLM generation time: %.3fs", gen_end - gen_start)
+            raw_answer, llm_found = classify_answer(raw_answer)
         else:
             raw_answer = NOT_FOUND_SENTINEL
+            llm_found = False
 
-        answer_is_found = found and NOT_FOUND_SENTINEL not in raw_answer
+        answer_is_found = found and llm_found
 
         elapsed_ms = (time.perf_counter() - t0) * 1000
 

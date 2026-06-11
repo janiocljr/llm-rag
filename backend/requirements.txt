@@ -15,4 +15,8 @@ httpx2
 chromadb>=0.3.30
 pymongo>=4.5
 pandas>=2.2
-camelot-py[cv]>=0.10.1
+
+# Extração de tabelas usa pdfplumber (100% offline, sem dependências de
+# sistema). camelot é OPCIONAL: requer ghostscript instalado na máquina;
+# se presente, é tentado primeiro e a ingestão cai para pdfplumber se falhar.
+# camelot-py[cv]>=0.10.1

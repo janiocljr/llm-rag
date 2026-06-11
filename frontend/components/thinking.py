@@ -1,53 +1,55 @@
+"""Painel de fontes — trechos dos documentos usados como contexto."""
 from __future__ import annotations
+
+import html
 
 import streamlit as st
 
-from utils.formatting import score_color, truncate
+from utils.formatting import score_tier, truncate
 
 
-def _chunk_card(chunk: dict, index: int = 1) -> str:
+def _source_card(chunk: dict, index: int) -> str:
     score = chunk.get("score", 0.0)
     source = chunk.get("source_file", "?")
     page = chunk.get("page_number", "?")
-    text = chunk.get("text", "")
-    text_preview = truncate(text, max_words=80)
     citation = chunk.get("citation", f"[{source}, p. {page}]")
+    text_preview = truncate(chunk.get("text", ""), max_words=80)
 
-    relevance_pct = int(score * 100)
+    tier = score_tier(score)
+    pct = max(0, min(100, int(round(score * 100))))
 
-    if score > 0.6:
-        color = "4CAF50"
-    elif score > 0.5:
-        color = "FFC107"
-    else:
-        color = "FF6B6B"
+    # Conteúdo vem dos PDFs — escapar antes de injetar no HTML do card.
+    citation = html.escape(citation)
+    text_preview = html.escape(text_preview)
 
     return (
-        f'<div class="chunk-card" style="border-left: 4px solid #{color}">'
-        f'  <div class="chunk-header">'
-        f'    <span class="chunk-source">📄 Fonte {index}: {citation}</span>'
-        f'    <span class="score-badge" style="background: #{color}; color: white">'
-        f'      {relevance_pct}%'
+        f'<div class="source-card">'
+        f'  <div class="source-head">'
+        f'    <span class="source-title">'
+        f'      <span class="source-index">#{index}</span>{citation}'
         f'    </span>'
+        f'    <span class="score-pill {tier}">{pct}%</span>'
         f'  </div>'
-        f'  <div class="chunk-text">"{text_preview}"</div>'
-        f'  <div style="font-size: 0.8em; color: #666; margin-top: 8px;">'
-        f'    📊 Similaridade: {score:.1%}'
+        f'  <div class="relevance-track" role="img" aria-label="Similaridade de {pct}%">'
+        f'    <div class="relevance-fill {tier}" style="width:{pct}%"></div>'
         f'  </div>'
-        f"</div>"
+        f'  <div class="source-text">“{text_preview}”</div>'
+        f'</div>'
     )
 
 
-def render_thinking_panel(chunks: list[dict]) -> None:
+def render_sources_panel(chunks: list[dict]) -> None:
     if not chunks:
-        st.info("Nenhum chunk recuperado nesta consulta.")
+        st.info(
+            "Nenhum trecho foi recuperado nesta consulta. "
+            "Tente reduzir o limiar de similaridade na barra lateral.",
+            icon=":material/search_off:",
+        )
         return
 
-    label = f"🧠 Raciocínio — {len(chunks)} chunk(s) utilizado(s)"
-    with st.expander(label, expanded=True):
-        st.markdown(
-            "Trechos dos documentos usados como contexto pelo LLM:",
-            help="Ordenados pelo score MMR (relevância + diversidade).",
-        )
-        cards_html = "".join(_chunk_card(c, i) for i, c in enumerate(chunks, 1))
-        st.markdown(cards_html, unsafe_allow_html=True)
+    st.caption(
+        "Trechos usados como contexto pelo LLM, ordenados por score MMR "
+        "(relevância + diversidade)."
+    )
+    cards_html = "".join(_source_card(c, i) for i, c in enumerate(chunks, 1))
+    st.markdown(cards_html, unsafe_allow_html=True)

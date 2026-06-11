@@ -4,6 +4,11 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+# Ambos os testes monkeypatcham camelot.read_pdf, o que exige o pacote
+# instalado. Em ambientes sem camelot a ingestão degrada para pdfplumber
+# (_HAS_CAMELOT=False), então pular aqui é o comportamento coerente.
+pytest.importorskip("camelot", reason="camelot não instalado neste ambiente")
+
 
 class FakePage:
     def __init__(self, text="Page text", tables=None):
@@ -88,7 +93,12 @@ def test_pdfplumber_fallback_when_camelot_fails(monkeypatch, tmp_path):
 
     monkeypatch.setattr('app.core.ingestion._HAS_CAMELOT', True)
 
-    sample_table = [["a", "b"], ["c", "d"]]
+    # Tabela com conteúdo acima do filtro de fragmentos (60 chars) da ingestão.
+    sample_table = [
+        ["indicador econômico", "valor de referência"],
+        ["inflação acumulada em doze meses", "5,35%"],
+        ["taxa básica de juros", "10,50%"],
+    ]
     fake_pdf = FakePDF([FakePage(text="Page text", tables=[sample_table])])
     monkeypatch.setattr('pdfplumber.open', lambda p: fake_pdf)
 
@@ -105,5 +115,7 @@ def test_pdfplumber_fallback_when_camelot_fails(monkeypatch, tmp_path):
     ing = PDFIngester(index_dir=tmp_path / "backend" / "data" / "index")
     chunks = list(ing.load_pdf(pdf_path))
 
-    found = any("pdfplumber" in c.text for c in chunks)
-    assert found, "pdfplumber fallback text not found in any chunk"
+    # Fallback do pdfplumber deve produzir o conteúdo da tabela como chunk.
+    table_chunks = [c for c in chunks if c.is_table]
+    assert table_chunks, "pdfplumber fallback produced no table chunk"
+    assert any("inflação acumulada em doze meses | 5,35%" in c.text for c in table_chunks)

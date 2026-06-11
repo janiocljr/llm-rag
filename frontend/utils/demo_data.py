@@ -8,8 +8,8 @@ DEMO_STATS: dict = {
         "indicadores_sociais.pdf",
     ],
     "index_type": "FlatIP (exact cosine)",
-    "embedding_model": "BAAI/bge-m3",
-    "embedding_dim": 1024,
+    "embedding_model": "intfloat/multilingual-e5-small",
+    "embedding_dim": 384,
 }
 
 DEMO_QUERY_RESPONSE: dict = {

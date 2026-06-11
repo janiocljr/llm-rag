@@ -176,8 +176,30 @@ class PDFIngester:
 
         return results
 
+    @staticmethod
+    def _format_pdfplumber_table(table: list[list]) -> str:
+        """Tabela → texto compacto: remove linhas e colunas inteiramente vazias.
+
+        Tabelas de PDF chegam cheias de células None/vazias; mantê-las gera
+        chunks de "| | |" que poluem tanto o embedding quanto o BM25.
+        """
+        rows = []
+        for row in table:
+            cells = [(cell or "").strip().replace("\n", " ") for cell in row]
+            if any(cells):
+                rows.append(cells)
+        if not rows:
+            return ""
+
+        n_cols = max(len(r) for r in rows)
+        rows = [r + [""] * (n_cols - len(r)) for r in rows]
+        keep = [j for j in range(n_cols) if any(r[j] for r in rows)]
+        if not keep:
+            return ""
+        return "\n".join(" | ".join(r[j] for j in keep) for r in rows)
+
     def _extract_tables_with_pdfplumber(
-        self, page
+        self, path: Path, page_num: int, page
     ) -> list[tuple[str, Optional[str]]]:
         results = []
 
@@ -191,14 +213,13 @@ class PDFIngester:
                     continue
 
                 try:
-                    rows = [
-                        " | ".join(
-                            cell.strip() if cell else "" for cell in row
-                        )
-                        for row in table
-                    ]
-                    table_str = "\n".join(rows)
-                    results.append((table_str, None))
+                    table_str = self._format_pdfplumber_table(table)
+                    if not table_str:
+                        continue
+
+                    df = pd.DataFrame(table)
+                    csv_path = self._save_table_csv(path, page_num, t_idx, df)
+                    results.append((table_str, csv_path or None))
                 except Exception as e:
                     logger.warning(f"Error processing pdfplumber table {t_idx}: {e}")
                     continue
@@ -210,30 +231,26 @@ class PDFIngester:
 
     def _extract_tables_from_page(
         self, path: Path, page_num: int, page
-    ) -> str:
-        tables_text = ""
+    ) -> list[tuple[str, Optional[str]]]:
+        """Retorna [(texto_da_tabela_com_cabeçalho, csv_path_relativo)].
 
-        camelot_tables = self._extract_tables_with_camelot(path, page_num)
-        for t_idx, (table_text, csv_path) in enumerate(camelot_tables):
-            csv_info = f" (Arquivo: {csv_path})" if csv_path else ""
-            table_header = (
-                f"\n[TABELA {t_idx + 1} - PÁGINA {page_num}]{csv_info}\n"
-                f"Descrição: Dados estruturados apresentados em formato tabular.\n"
-                f"{'='*70}\n"
-            )
-            tables_text += table_header + table_text + "\n"
+        O cabeçalho identifica origem (documento/página) sem boilerplate:
+        descrições genéricas e caminhos de arquivo no texto viram ruído de
+        embedding. O caminho do CSV vai no metadado table_csv_path do chunk.
+        """
+        extracted = self._extract_tables_with_camelot(path, page_num)
+        if not extracted:
+            extracted = self._extract_tables_with_pdfplumber(path, page_num, page)
 
-        if not camelot_tables:
-            pdfplumber_tables = self._extract_tables_with_pdfplumber(page)
-            for t_idx, (table_text, _) in enumerate(pdfplumber_tables):
-                table_header = (
-                    f"\n[TABELA {t_idx + 1} - PÁGINA {page_num}]\n"
-                    f"Descrição: Dados estruturados apresentados em formato tabular.\n"
-                    f"{'='*70}\n"
-                )
-                tables_text += table_header + table_text + "\n"
-
-        return tables_text
+        results = []
+        for t_idx, (table_text, csv_path) in enumerate(extracted):
+            # Tabelas-fragmento (uma célula, legendas de gráfico) não têm
+            # valor isolado e, por serem curtíssimas, dominam o ranking BM25.
+            if len(table_text.strip()) < 60:
+                continue
+            header = f"[Tabela {t_idx + 1} — página {page_num} de {path.name}]\n"
+            results.append((header + table_text, csv_path))
+        return results
 
     def _format_table_text(self, df: pd.DataFrame) -> str:
         try:
@@ -255,7 +272,8 @@ class PDFIngester:
             csv_path = self._tables_dir / filename
             df.to_csv(csv_path, index=False, encoding="utf-8")
             logger.debug(f"Saved table to: {csv_path}")
-            return str(csv_path)
+            # Caminho relativo ao index_dir: portátil entre máquinas/containers.
+            return str(Path("tables") / filename)
         except Exception as e:
             logger.warning(f"Failed to save table CSV: {e}")
             return ""
@@ -295,14 +313,18 @@ class PDFIngester:
 
         text_chunks.extend(footnote_chunks)
 
-        tables_text = self._extract_tables_from_page(path, page_num, page)
-        table_chunks: list[str] = []
-        if tables_text.strip():
-            cleaned_tables = clean_text(tables_text)
-            table_chunks = self.splitter.split(cleaned_tables)
+        table_entries = self._extract_tables_from_page(path, page_num, page)
+        table_chunks: list[tuple[str, Optional[str]]] = []
+        for table_text, csv_path in table_entries:
+            cleaned_table = clean_text(table_text)
+            for piece in self.splitter.split(cleaned_table):
+                table_chunks.append((piece, csv_path))
 
-        all_chunks = text_chunks + table_chunks
-        if not all_chunks:
+        all_entries: list[tuple[str, bool, Optional[str]]] = [
+            (text, False, None) for text in text_chunks
+        ] + [(text, True, csv_path) for text, csv_path in table_chunks]
+
+        if not all_entries:
             logger.debug(f"Page {page_num} has no content")
             return
 
@@ -310,7 +332,7 @@ class PDFIngester:
             f"Page {page_num}: {len(text_chunks)} text/footnote chunks + {len(table_chunks)} table chunks"
         )
 
-        for chunk_idx, chunk_text in enumerate(all_chunks):
+        for chunk_idx, (chunk_text, is_table, csv_path) in enumerate(all_entries):
             if not chunk_text.strip():
                 continue
 
@@ -320,10 +342,12 @@ class PDFIngester:
                 source_file=filename,
                 page_number=page_num,
                 chunk_index=chunk_idx,
-                total_chunks_in_page=len(all_chunks),
+                total_chunks_in_page=len(all_entries),
                 char_count=len(chunk_text),
                 token_estimate=estimate_tokens(chunk_text),
-                semantic_type=self._infer_semantic_type(chunk_text),
+                is_table=is_table,
+                table_csv_path=csv_path,
+                semantic_type="table" if is_table else self._infer_semantic_type(chunk_text),
             )
 
     def load_pdf(self, path: Path) -> Iterator[DocumentChunk]:
