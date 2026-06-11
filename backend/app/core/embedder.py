@@ -10,9 +10,26 @@ from app.models.schemas import DocumentChunk
 
 logger = logging.getLogger(__name__)
 
-_BGE_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
-_QUERY_PREFIX = "search_query: "
-_DOCUMENT_PREFIX = "search_document: "
+_BGE_EN_QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+_E5_QUERY_PREFIX = "query: "
+_E5_DOCUMENT_PREFIX = "passage: "
+
+
+def _resolve_prefixes(model_name: str) -> tuple[str, str]:
+    """Retorna (query_prefix, document_prefix) conforme o protocolo do modelo.
+
+    Modelos de embedding assimétricos são treinados com prefixos fixos e
+    degradam fortemente sem eles:
+      - família e5 (intfloat/*e5*): "query: " / "passage: " obrigatórios;
+      - BGE inglês v1.5 (bge-*-en*): instrução apenas na query;
+      - bge-m3 e demais: sem prefixo.
+    """
+    name = model_name.lower()
+    if "e5" in name:
+        return _E5_QUERY_PREFIX, _E5_DOCUMENT_PREFIX
+    if "bge" in name and "-en" in name:
+        return _BGE_EN_QUERY_PREFIX, ""
+    return "", ""
 
 
 def _resolve_device(device: str) -> str:
@@ -45,7 +62,7 @@ def _setup_hf_env() -> None:
 class Embedder:
     def __init__(
         self,
-        model_name: str = "BAAI/bge-m3",
+        model_name: str = "intfloat/multilingual-e5-small",
         batch_size: int = 64,
         device: str = "auto",
     ) -> None:
@@ -54,6 +71,7 @@ class Embedder:
         logger.info(f"Loading embedding model: {model_name} (device={resolved_device})")
         self.model_name = model_name
         self.batch_size = batch_size
+        self.query_prefix, self.document_prefix = _resolve_prefixes(model_name)
 
         try:
             self._model = SentenceTransformer(model_name, device=resolved_device)
@@ -62,21 +80,24 @@ class Embedder:
             raise
 
         self.dim: int = self._model.get_sentence_embedding_dimension()
-        logger.info(f"Embedding model ready — dim={self.dim}, device={resolved_device}")
+        logger.info(
+            f"Embedding model ready — dim={self.dim}, device={resolved_device}, "
+            f"query_prefix={self.query_prefix!r}, document_prefix={self.document_prefix!r}"
+        )
 
     def embed_documents(self, chunks: list[DocumentChunk]) -> np.ndarray:
         texts = [chunk.text for chunk in chunks]
-        return self._encode(texts, is_query=False)
+        return self._encode(texts, prefix=self.document_prefix)
 
     def embed_query(self, query: str) -> np.ndarray:
-        return self._encode([query], is_query=True)
+        return self._encode([query], prefix=self.query_prefix)
 
-    def _encode(self, texts: list[str], is_query: bool) -> np.ndarray:
+    def _encode(self, texts: list[str], prefix: str = "") -> np.ndarray:
         if not texts:
             return np.empty((0, self.dim), dtype=np.float32)
 
-        if is_query:
-            texts = [_BGE_QUERY_PREFIX + t for t in texts]
+        if prefix:
+            texts = [prefix + t for t in texts]
 
         embeddings = self._model.encode(
             texts,

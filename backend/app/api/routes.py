@@ -58,28 +58,26 @@ async def query_stream(body: QueryRequest, request: Request):
     pipeline = _pipeline(request)
 
     try:
-        top_k = body.top_k or pipeline.settings.retrieval_top_k
-        threshold = body.similarity_threshold or pipeline.settings.similarity_threshold
-
-        query_embedding = pipeline.embedder.embed_query(body.question)
-        candidates = pipeline.vector_store.search(
-            query_embedding=query_embedding,
-            top_k=top_k,
-            threshold=threshold,
-        )
-        final_chunks = pipeline.vector_store.mmr_rerank(
-            candidates=candidates,
-            query_embedding=query_embedding,
-            final_k=pipeline.settings.retrieval_final_k,
-            lambda_=pipeline.settings.mmr_lambda,
+        _, _, final_chunks = pipeline.retrieve(
+            question=body.question,
+            top_k=body.top_k,
+            threshold=body.similarity_threshold,
         )
 
-        from app.core.llm import build_messages
+        from app.core.llm import (
+            build_messages,
+            context_char_budget,
+            stream_with_false_negative_guard,
+        )
 
         full_prompt = build_messages(
             question=body.question,
             retrieved_chunks=final_chunks,
             system_prompt=pipeline.settings.system_prompt,
+            max_context_chars=context_char_budget(
+                pipeline.settings.llm_context_length,
+                pipeline.settings.llm_max_new_tokens,
+            ),
         )
 
         def event_stream():
@@ -101,7 +99,10 @@ async def query_stream(body: QueryRequest, request: Request):
             yield f"data: {json.dumps(meta, ensure_ascii=False)}\n\n"
 
             if final_chunks:
-                for token in pipeline.llm.stream_generate(full_prompt):
+                guarded = stream_with_false_negative_guard(
+                    pipeline.llm.stream_generate(full_prompt)
+                )
+                for token in guarded:
                     payload = {"type": "token", "text": token}
                     yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
             else:

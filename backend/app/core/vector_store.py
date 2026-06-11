@@ -64,12 +64,18 @@ class VectorStore:
 
         return results
 
+    def score_at(self, position: int, query_embedding: np.ndarray) -> float:
+        """Similaridade coseno entre a query e o vetor na posição dada."""
+        emb = self._index.reconstruct(int(position))
+        return float(np.dot(emb, query_embedding.reshape(-1)))
+
     def mmr_rerank(
         self,
         candidates: list[RetrievedChunk],
         query_embedding: np.ndarray,
         final_k: int,
         lambda_: float = 0.6,
+        relevance_scores: Optional[list[float]] = None,
     ) -> list[RetrievedChunk]:
         if not candidates:
             return []
@@ -80,6 +86,25 @@ class VectorStore:
         candidate_embeddings = self._get_embeddings_for_chunks(candidates)
         q = query_embedding.reshape(-1)
 
+        # Modelos como o e5 comprimem os cosenos num intervalo estreito
+        # (~0.75-0.90 para todo o corpus). Sem normalização, o termo de
+        # redundância domina as diferenças minúsculas de relevância e o MMR
+        # passa a descartar exatamente os chunks mais relevantes. Min-max
+        # sobre os candidatos devolve peso real ao termo de relevância.
+        # relevance_scores permite usar um ranking externo (ex.: fusão RRF
+        # da busca híbrida) como termo de relevância.
+        if relevance_scores is not None:
+            raw_relevances = np.asarray(relevance_scores, dtype=np.float64)
+        else:
+            raw_relevances = np.array(
+                [float(np.dot(emb, q)) for emb in candidate_embeddings]
+            )
+        rel_min, rel_max = raw_relevances.min(), raw_relevances.max()
+        if rel_max > rel_min:
+            relevances = (raw_relevances - rel_min) / (rel_max - rel_min)
+        else:
+            relevances = np.ones_like(raw_relevances)
+
         selected_indices: list[int] = []
         remaining = list(range(len(candidates)))
 
@@ -88,7 +113,7 @@ class VectorStore:
             best_score = -float("inf")
 
             for i in remaining:
-                relevance = float(np.dot(candidate_embeddings[i], q))
+                relevance = float(relevances[i])
 
                 if not selected_indices:
                     redundancy = 0.0
@@ -155,6 +180,10 @@ class VectorStore:
     @property
     def size(self) -> int:
         return self._index.ntotal if self._index else 0
+
+    @property
+    def chunks(self) -> list[DocumentChunk]:
+        return self._chunks
 
     @property
     def documents(self) -> list[str]:

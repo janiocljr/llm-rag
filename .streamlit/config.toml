@@ -1,0 +1,37 @@
+# ════════════════════════════════════════════════════════════════
+# RAG Chat — Streamlit native theme
+# Define o tema base no nível do framework para que a UI seja
+# consistente independentemente do modo claro/escuro do sistema.
+# A camada fina de CSS em assets/styles.css complementa estes tokens.
+# ════════════════════════════════════════════════════════════════
+
+[theme]
+base = "dark"
+
+# Cores principais (escala zinc + accent indigo)
+primaryColor = "#6366F1"
+backgroundColor = "#09090B"
+secondaryBackgroundColor = "#141418"
+textColor = "#E4E4E7"
+linkColor = "#818CF8"
+codeBackgroundColor = "#131316"
+borderColor = "#26262B"
+
+# Tipografia — Inter é carregada em assets/styles.css com fallback
+# para a system stack quando offline.
+font = "Inter, -apple-system, 'Segoe UI', Roboto, sans-serif"
+headingFont = "Inter, -apple-system, 'Segoe UI', Roboto, sans-serif"
+codeFont = "'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace"
+
+baseRadius = "0.625rem"
+showSidebarBorder = true
+
+[theme.sidebar]
+backgroundColor = "#0D0D10"
+secondaryBackgroundColor = "#1A1A1F"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
