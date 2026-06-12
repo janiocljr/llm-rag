@@ -59,20 +59,28 @@ def setup_env() -> None:
 
     if not conda_prefix and "--no-conda-setup" not in sys.argv:
         condacmd = shutil.which("conda")
-        miniforge_conda = str(Path.home() / "miniforge3" / "bin" / "conda")
+        if IS_WIN:
+            miniforge_conda = str(Path.home() / "miniforge3" / "Scripts" / "conda.exe")
+        else:
+            miniforge_conda = str(Path.home() / "miniforge3" / "bin" / "conda")
         if not condacmd and Path(miniforge_conda).exists():
             condacmd = miniforge_conda
 
         if not condacmd:
-            warn("Conda não encontrado. Executando scripts/setup_backend_mac.sh para instalar Miniforge e criar env 'rag'...")
-            setup_script = ROOT / "scripts" / "setup_backend_mac.sh"
-            if setup_script.exists():
-                try:
-                    subprocess.run(["bash", str(setup_script)], check=True)
-                except subprocess.CalledProcessError:
-                    warn("Falha ao executar scripts/setup_backend_mac.sh. Verifique o script manualmente.")
+            if IS_WIN:
+                warn("Conda não encontrado. Instale o Miniforge e crie o ambiente:")
+                warn("  conda create -n rag python=3.11 && conda activate rag")
+                warn("Continuando com venv como alternativa…")
             else:
-                warn(f"Script não encontrado: {setup_script}.")
+                warn("Conda não encontrado. Executando scripts/setup_backend_mac.sh para instalar Miniforge e criar env 'rag'...")
+                setup_script = ROOT / "scripts" / "setup_backend_mac.sh"
+                if setup_script.exists():
+                    try:
+                        subprocess.run(["bash", str(setup_script)], check=True)
+                    except subprocess.CalledProcessError:
+                        warn("Falha ao executar scripts/setup_backend_mac.sh. Verifique o script manualmente.")
+                else:
+                    warn(f"Script não encontrado: {setup_script}.")
 
         if not condacmd and Path(miniforge_conda).exists():
             condacmd = miniforge_conda
@@ -80,8 +88,13 @@ def setup_env() -> None:
             condacmd = shutil.which("conda")
 
         if condacmd:
-            ok(f"Relançando este script dentro do env 'rag' usando {condacmd} (conda run -n rag python3)...")
-            os.execvp(condacmd, [condacmd, "run", "-n", "rag", "--no-capture-output", "python3"] + sys.argv)
+            if IS_WIN:
+                ok(f"Relançando este script dentro do env 'rag' usando {condacmd}…")
+                result = subprocess.run([condacmd, "run", "-n", "rag", "--no-capture-output", "python"] + sys.argv)
+                sys.exit(result.returncode)
+            else:
+                ok(f"Relançando este script dentro do env 'rag' usando {condacmd} (conda run -n rag python3)...")
+                os.execvp(condacmd, [condacmd, "run", "-n", "rag", "--no-capture-output", "python3"] + sys.argv)
         else:
             warn("Conda não disponível após tentativa de instalação; continuando com fallback venv.")
     if conda_prefix:
@@ -121,28 +134,58 @@ def setup_env() -> None:
         ok(f"Dependências do {label} instaladas.")
 
 
+def _to_ps_args(args: list[str]) -> list[str]:
+    valued = {"--port-api": "-PortApi", "--port-ui": "-PortUi"}
+    flags  = {"--no-ingest": "-NoIngest", "--reload": "-Reload"}
+    ps: list[str] = []
+    i = 0
+    while i < len(args):
+        a = args[i]
+        if a in valued and i + 1 < len(args):
+            ps += [valued[a], args[i + 1]]; i += 2
+        elif a in flags:
+            ps.append(flags[a]); i += 1
+        else:
+            i += 1
+    return ps
+
+
+def _launch_windows(extra_args: list[str]) -> None:
+    script = ROOT / "start.ps1"
+    if not script.exists():
+        err(f"Script não encontrado: {script}")
+        sys.exit(1)
+    sep()
+    log("Delegando para start.ps1 …")
+    result = subprocess.run(
+        ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(script)] + _to_ps_args(extra_args)
+    )
+    sys.exit(result.returncode)
+
+
+def _launch_unix(extra_args: list[str]) -> None:
+    script = ROOT / "backend" / "start.sh"
+    if not script.exists():
+        err(f"Script não encontrado: {script}")
+        sys.exit(1)
+    sep()
+    log("Delegando para backend/start.sh …")
+    os.execvp("bash", ["bash", str(script)] + extra_args)
+
+
 def main() -> None:
     if "--help" in sys.argv or "-h" in sys.argv:
         print(__doc__)
         sys.exit(0)
 
-    if IS_WIN:
-        err("Windows não é suportado pelo start.sh. Execute backend e frontend manualmente.")
-        sys.exit(1)
-
     setup_env()
 
-    script = ROOT / "backend" / "start.sh"
-    if not script.exists():
-        err(f"Script não encontrado: {script}")
-        sys.exit(1)
+    extra_args = [a for a in sys.argv[1:] if a != "--no-conda-setup"]
 
-    extra_args = sys.argv[1:]
-
-    sep()
-    log(f"Delegando para backend/start.sh …")
-
-    os.execvp("bash", ["bash", str(script)] + extra_args)
+    if IS_WIN:
+        _launch_windows(extra_args)
+    else:
+        _launch_unix(extra_args)
 
 
 if __name__ == "__main__":

@@ -99,27 +99,45 @@ Sistema RAG completo e offline que permite consultar documentos PDF através de 
 | **Disco** | 10 GB livres | 15 GB |
 | **GPU** | Opcional | Apple M1/M2/M3 (MPS) |
 
-> **Nota Apple Silicon**: com `LLM_N_GPU_LAYERS=-1` e `EMBEDDING_DEVICE=mps` a inferência utiliza a GPU unificada do chip, reduzindo o tempo de resposta em ~30× em relação à execução exclusiva em CPU.
+> **Apple Silicon (MPS)**: com `LLM_N_GPU_LAYERS=-1` e `EMBEDDING_DEVICE=mps` a inferência utiliza a GPU unificada do chip (~30× vs. CPU).
+>
+> **NVIDIA (CUDA)**: com `LLM_N_GPU_LAYERS=-1` e `EMBEDDING_DEVICE=cuda` a inferência usa a GPU via CUDA. Requer `llama-cpp-python` compilado com suporte CUDA.
 
 ### Software
 
-- **macOS 12+** ou **Linux** (Ubuntu 20.04+)
+| Sistema | Versão mínima |
+|---------|--------------|
+| macOS | 12+ |
+| Linux | Ubuntu 20.04+ |
+| Windows | 10 / 11 (PowerShell 5.1+) |
+
 - **Python 3.10 — 3.12** (3.13+ não testado)
-- **Ghostscript** (para Camelot; instalado via Conda/Homebrew)
+- **Ghostscript** (para Camelot; instalado via Conda/Homebrew/Chocolatey)
 - **Conda/Miniforge** (recomendado) ou **venv** local
 
 ---
 
 ## 🚀 Instalação
 
-### Pré-requisitos obrigatórios
+### Pré-requisitos — macOS
 
 ```bash
 xcode-select --install
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-### Opção 1: start.py automático (Recomendado)
+### Pré-requisitos — Windows
+
+```powershell
+# Chocolatey (gerenciador de pacotes — execute como Administrador)
+Set-ExecutionPolicy Bypass -Scope Process -Force
+iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+
+# Ghostscript (necessário para extração de tabelas via Camelot)
+choco install ghostscript -y
+```
+
+### Opção 1: start.py automático — macOS / Linux (Recomendado)
 
 ```bash
 git clone <REPO_URL>
@@ -142,7 +160,32 @@ python3 start.py
 > python3 start.py
 > ```
 
-### Opção 2: Setup manual (Conda)
+### Opção 1b: start.py automático — Windows
+
+```powershell
+git clone <REPO_URL>
+cd llm-rag
+
+# Crie o .env a partir do exemplo
+copy backend\.env.example .env
+
+# Adicione seus PDFs
+copy C:\caminho\para\seus\documentos\*.pdf backend\data\pdfs\
+
+# Inicie — detecta Conda/venv, baixa modelos e sobe tudo via start.ps1
+python start.py
+```
+
+> **Se o Conda já está instalado mas o ambiente `rag` ainda não existe**, crie-o antes:
+> ```powershell
+> conda create -n rag python=3.11 -y
+> conda activate rag
+> python start.py
+> ```
+
+> **Política de execução do PowerShell**: o `start.py` invoca o `start.ps1` com `-ExecutionPolicy Bypass` automaticamente. Não é necessário alterar a política global do sistema.
+
+### Opção 2: Setup manual (Conda) — macOS
 
 ```bash
 bash scripts/setup_backend_mac.sh   # instala Miniforge + cria env 'rag'
@@ -162,15 +205,20 @@ docker compose up --build
 
 ## ⚡ Quick Start
 
+**macOS / Linux**
+
 ```bash
-# 1. Configure o ambiente
 cp backend/.env.example .env          # ajuste EMBEDDING_DEVICE e LLM_N_GPU_LAYERS conforme hardware
-
-# 2. Adicione seus PDFs
-cp /caminho/para/seus/documentos/*.pdf backend/data/pdfs/
-
-# 3. Inicie (modelos baixados automaticamente, indexação na primeira execução)
+cp /caminho/para/pdfs/*.pdf backend/data/pdfs/
 python3 start.py
+```
+
+**Windows (PowerShell)**
+
+```powershell
+copy backend\.env.example .env        # ajuste EMBEDDING_DEVICE e LLM_N_GPU_LAYERS conforme hardware
+copy C:\caminho\para\pdfs\*.pdf backend\data\pdfs\
+python start.py
 ```
 
 **URLs disponíveis:**
@@ -190,7 +238,8 @@ python3 start.py
 llm-rag/
 ├── README.md
 ├── pyproject.toml               # Build config + dependências
-├── start.py                     # Launcher (auto-detecta Conda/venv)
+├── start.py                     # Launcher cross-plataforma (auto-detecta Conda/venv)
+├── start.ps1                    # Launcher Windows (PowerShell — invocado pelo start.py)
 ├── environment.yml              # Conda environment (Python 3.11)
 │
 ├── .env                         # Configuração de runtime (não versionado)
@@ -491,15 +540,31 @@ PYTHONPATH=./backend python -m pytest backend/tests/test_config.py -v
 
 ### Porta já em uso (8000 / 8501)
 
+**macOS / Linux**
 ```bash
 lsof -ti:8000 | xargs kill -9
 lsof -ti:8501 | xargs kill -9
 ```
 
+**Windows (PowerShell)**
+```powershell
+Get-Process -Id (Get-NetTCPConnection -LocalPort 8000).OwningProcess | Stop-Process -Force
+Get-Process -Id (Get-NetTCPConnection -LocalPort 8501).OwningProcess | Stop-Process -Force
+```
+
 ### Conda não encontrado
 
+**macOS / Linux**
 ```bash
 eval "$($HOME/miniforge3/bin/conda shell.zsh hook)"
+conda activate rag
+```
+
+**Windows**
+```powershell
+# Se o Miniforge foi instalado mas o conda não está no PATH:
+& "$env:USERPROFILE\miniforge3\Scripts\conda.exe" init powershell
+# Reabra o PowerShell e execute:
 conda activate rag
 ```
 
@@ -560,6 +625,30 @@ python3 -c "import torch; print(torch.backends.mps.is_available())"
 bash scripts/setup_backend_mac.sh
 ```
 
+### Windows: erro ao executar start.ps1 diretamente
+
+Se executar `.\start.ps1` retornar erro de política de execução:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File start.ps1
+```
+
+O `start.py` já aplica `-ExecutionPolicy Bypass` automaticamente ao delegar para o `start.ps1`.
+
+### Windows: EMBEDDING_DEVICE / LLM_N_GPU_LAYERS para CUDA
+
+```bash
+# Em .env, troque mps por cuda:
+EMBEDDING_DEVICE=cuda
+LLM_N_GPU_LAYERS=-1
+```
+
+Requer `llama-cpp-python` compilado com suporte CUDA. Instale com:
+
+```powershell
+pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
+```
+
 ### Respostas "Não encontrei essa informação" em excesso
 
 Ajuste os parâmetros de recuperação no `.env` (raíz do projeto):
@@ -598,6 +687,7 @@ RETRIEVAL_FINAL_K=7         # Mais chunks no contexto do LLM
 | Busca híbrida (FAISS + BM25 + RRF) | ✅ Ativada |
 | Extração de tabelas (Camelot) | ✅ Com fallback automático |
 | Aceleração MPS (Apple Silicon) | ✅ Ativada |
+| Suporte Windows (PowerShell) | ✅ start.ps1 + start.py |
 | Guarda de falso negativo (LLM) | ✅ Ativada |
 | Validação de assinatura do índice | ✅ Automática no startup |
 | Testes unitários | ✅ 109/109 passing |
