@@ -12,7 +12,6 @@ env/
 
 # ── Environment variables (secrets) ───────────────────────────────
 .env
-backend/.env
 
 # ── Model files (large binaries — download separately) ─────────────
 backend/models/*.gguf
@@ -49,6 +48,9 @@ coverage.xml
 dist/
 build/
 *.egg-info/
+
+# ── Claude
+claude/
 
 # ── Misc ───────────────────────────────────────────────────────────
 .python-version

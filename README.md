@@ -112,41 +112,42 @@ Sistema RAG completo e offline que permite consultar documentos PDF através de 
 
 ## 🚀 Instalação
 
-### Opção 1: Conda (Recomendado — macOS/Linux)
+### Pré-requisitos obrigatórios
 
 ```bash
-# Clone o repositório
+xcode-select --install
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+### Opção 1: start.py automático (Recomendado)
+
+```bash
 git clone <REPO_URL>
 cd llm-rag
 
-# Instale Miniforge e crie o ambiente
-bash scripts/setup_backend_mac.sh
+# Crie o .env a partir do exemplo
+cp backend/.env.example .env
 
-# Ative o ambiente
-eval "$($HOME/miniforge3/bin/conda shell.zsh hook)"  # zsh
-# ou:
-eval "$($HOME/miniforge3/bin/conda shell.bash hook)"  # bash
-conda activate rag
+# Adicione seus PDFs
+cp /caminho/para/seus/documentos/*.pdf backend/data/pdfs/
 
-# Baixe o modelo LLM (~4.7 GB)
-cd backend
-python scripts/download_model.py
-
-# Baixe o modelo de embeddings (~118 MB)
-python scripts/download_embeddings.py
-
-# Inicie a aplicação
-cd ..
+# Inicie — detecta/instala Conda, cria env 'rag', baixa modelos e sobe tudo
 python3 start.py
 ```
 
-### Opção 2: venv Local
+> **Se o Conda já está instalado mas o ambiente `rag` ainda não existe**, crie-o antes:
+> ```bash
+> conda env create -f environment.yml -n rag
+> conda activate rag
+> python3 start.py
+> ```
+
+### Opção 2: Setup manual (Conda)
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip setuptools wheel
-pip install -r backend/requirements.txt
+bash scripts/setup_backend_mac.sh   # instala Miniforge + cria env 'rag'
+conda activate rag
+cp backend/.env.example .env
 python3 start.py
 ```
 
@@ -162,16 +163,14 @@ docker compose up --build
 ## ⚡ Quick Start
 
 ```bash
-# 1. Adicione seus PDFs
-mkdir -p backend/data/pdfs
+# 1. Configure o ambiente
+cp backend/.env.example .env          # ajuste EMBEDDING_DEVICE e LLM_N_GPU_LAYERS conforme hardware
+
+# 2. Adicione seus PDFs
 cp /caminho/para/seus/documentos/*.pdf backend/data/pdfs/
 
-# 2. Inicie o sistema (indexação automática na primeira execução)
+# 3. Inicie (modelos baixados automaticamente, indexação na primeira execução)
 python3 start.py
-
-# 3. Acesse no navegador
-#    Chat:        http://localhost:8501
-#    API Docs:    http://localhost:8000/docs
 ```
 
 **URLs disponíveis:**
@@ -194,8 +193,8 @@ llm-rag/
 ├── start.py                     # Launcher (auto-detecta Conda/venv)
 ├── environment.yml              # Conda environment (Python 3.11)
 │
+├── .env                         # Configuração de runtime (não versionado)
 ├── backend/
-│   ├── .env                     # Configuração de runtime
 │   ├── app/
 │   │   ├── main.py              # FastAPI app + lifespan
 │   │   ├── api/
@@ -290,7 +289,7 @@ Usuário (Navegador)
    ├── VectorStore       ← FAISS IndexFlatIP
    ├── BM25Index         ← busca lexical (Okapi, puro Python)
    ├── RRF Fusion        ← Reciprocal Rank Fusion (k=60)
-   ├── MMR Re-ranker     ← λ = 0.6
+   ├── MMR Re-ranker     ← λ = 0.75
    └── LLM               ← Qwen2.5-7B-Instruct Q4_K_M (llama-cpp)
         │
    Armazenamento Local
@@ -315,7 +314,7 @@ Pergunta do Usuário
         Reciprocal Rank Fusion (RRF, k=60)
         — funde ambos os rankings em lista unificada
                     │
-        MMR Re-rank (λ = 0.6) → top-5 chunks finais
+        MMR Re-rank (λ = 0.75) → top-5 chunks finais
                     │
         Build Prompt (context_char_budget — evita estouro)
         system prompt + contexto + pergunta + instruções
@@ -420,7 +419,7 @@ for chunk in response.retrieved_chunks:
 
 ## ⚙️ Configuração
 
-Todas as variáveis são definidas em `backend/.env`. Valores abaixo refletem a configuração de referência:
+Todas as variáveis são definidas no arquivo `.env` na raíz do projeto (crie a partir de `backend/.env.example`). Valores abaixo refletem a configuração de referência:
 
 ```bash
 # Diretórios
@@ -439,14 +438,14 @@ EMBEDDING_BATCH_SIZE=32
 EMBEDDING_DEVICE=mps        # mps (Apple Silicon) | cuda | cpu
 
 # Recuperação
-RETRIEVAL_TOP_K=10          # Candidatos recuperados do FAISS
+RETRIEVAL_TOP_K=20          # Candidatos recuperados (FAISS + BM25)
 RETRIEVAL_FINAL_K=5         # Chunks injetados no prompt após MMR
 SIMILARITY_THRESHOLD=0.45   # Score mínimo de similaridade (0–1)
-MMR_LAMBDA=0.6              # 1.0 = só relevância, 0.0 = só diversidade
+MMR_LAMBDA=0.75             # 1.0 = só relevância, 0.0 = só diversidade
 
 # LLM
 LLM_MODEL_PATH=models/qwen2.5-7b-instruct-q4_k_m.gguf
-LLM_CONTEXT_LENGTH=4096
+LLM_CONTEXT_LENGTH=8192
 LLM_MAX_NEW_TOKENS=512
 LLM_TEMPERATURE=0.1
 LLM_N_GPU_LAYERS=-1         # -1 = todas as camadas na GPU (MPS/CUDA) | 0 = CPU
@@ -506,20 +505,21 @@ conda activate rag
 
 ### Modelo LLM não encontrado
 
+O `start.py` baixa o modelo automaticamente se ausente. Para baixar manualmente:
+
 ```bash
-# Baixe o Qwen2.5-7B (~4.7 GB)
 cd backend
 python scripts/download_model.py --model qwen2.5-7b
 
 # Verifique o caminho configurado em .env
-grep LLM_MODEL_PATH .env
+grep LLM_MODEL_PATH ../.env
 ```
 
 ### Modelo de embeddings não encontrado
 
 ```bash
 cd backend
-python scripts/download_embeddings.py --model multilingual-e5-small
+python scripts/ensure_models.py
 ```
 
 ### Índice FAISS corrompido ou desatualizado
@@ -548,7 +548,7 @@ curl -X POST http://localhost:8000/api/v1/ingest \
 # Verifique suporte MPS
 python3 -c "import torch; print(torch.backends.mps.is_available())"
 
-# Se True, configure em backend/.env:
+# Se True, configure no .env (raíz do projeto):
 # LLM_N_GPU_LAYERS=-1
 # EMBEDDING_DEVICE=mps
 ```
@@ -562,7 +562,7 @@ bash scripts/setup_backend_mac.sh
 
 ### Respostas "Não encontrei essa informação" em excesso
 
-Ajuste os parâmetros de recuperação em `backend/.env`:
+Ajuste os parâmetros de recuperação no `.env` (raíz do projeto):
 
 ```bash
 SIMILARITY_THRESHOLD=0.40   # Reduza o threshold (mais recall)

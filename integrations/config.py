@@ -2,33 +2,40 @@ from __future__ import annotations
 
 from pathlib import Path
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_ROOT_ENV = Path(__file__).resolve().parent.parent / ".env"
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=str(_ROOT_ENV),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     data_dir:  Path = Path("data/pdfs")
     index_dir: Path = Path("data/index")
     model_dir: Path = Path("models")
 
-    embedding_model:      str = "BAAI/bge-m3"
-    embedding_dim:        int = 1024
-    embedding_batch_size: int = 64
+    embedding_model:      str = "intfloat/multilingual-e5-small"
+    embedding_dim:        int = 384
+    embedding_batch_size: int = 32
 
-    chunk_size:    int = 512
-    chunk_overlap: int = 64
+    chunk_size:    int = 300
+    chunk_overlap: int = 50
 
-    retrieval_top_k:      int   = 8
-    retrieval_final_k:    int   = 3
-    similarity_threshold: float = 0.30
-    mmr_lambda:           float = 0.6
+    retrieval_top_k:      int   = 20
+    retrieval_final_k:    int   = 5
+    similarity_threshold: float = 0.45
+    mmr_lambda:           float = 0.75
 
     use_bm25_hybrid:            bool = True
     auto_chunk_type_routing:    bool = True
     skip_table_chunks_in_index: bool = False
     min_chunk_tokens:           int  = 20
 
-    use_chroma:                   bool = True
+    use_chroma:                   bool = False
     chroma_host:                  str  = "localhost"
     chroma_port:                  int  = 8200
     chroma_collection_embeddings: str  = "pdf_embeddings"
@@ -37,8 +44,8 @@ class Settings(BaseSettings):
     mongo_uri: str = "mongodb://ragadmin:ragpassword@localhost:27017/rag_knowledge?authSource=admin"
     mongo_db:  str = "rag_knowledge"
 
-    llm_model_path:     str   = "models/mistral-7b-instruct-v0.2.Q4_K_M.gguf"
-    llm_context_length: int   = 4096
+    llm_model_path:     str   = "models/qwen2.5-7b-instruct-q4_k_m.gguf"
+    llm_context_length: int   = 8192
     llm_max_new_tokens: int   = 512
     llm_temperature:    float = 0.1
     llm_n_gpu_layers:   int   = 0
@@ -51,10 +58,6 @@ class Settings(BaseSettings):
         "diga exatamente: 'Não encontrei essa informação nos documentos fornecidos.' "
         "Seja preciso, cite a fonte e a página para cada afirmação."
     )
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
     @field_validator("similarity_threshold")
     @classmethod

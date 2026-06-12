@@ -12,13 +12,13 @@ def _model_cache_exists(model_id: str) -> bool:
 
 
 def _read_model_from_env() -> str:
-    env_file = Path(__file__).parent.parent / ".env"
+    env_file = Path(__file__).parent.parent.parent / ".env"
     if env_file.exists():
         for line in env_file.read_text().splitlines():
             line = line.strip()
             if line.startswith("EMBEDDING_MODEL") and "=" in line:
                 return line.split("=", 1)[1].strip().strip('"\'')
-    return "BAAI/bge-m3"
+    return "intfloat/multilingual-e5-small"
 
 
 def ensure_embedding_model(model_id: str) -> bool:

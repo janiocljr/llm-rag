@@ -63,6 +63,16 @@ if [[ -z "$(ls -A backend/data/pdfs 2>/dev/null)" ]]; then
   warn "backend/data/pdfs/ está vazio — adicione arquivos PDF antes de ingerir."
 fi
 
+if [[ -f ".env" ]]; then
+  ok ".env encontrado — será lido pelo Pydantic-Settings no startup."
+  _env_model=$(grep -E '^[[:space:]]*LLM_MODEL_PATH[[:space:]]*=' .env \
+    | tail -1 | cut -d'=' -f2- | tr -d '"'"'" | xargs 2>/dev/null || true)
+  [[ -n "$_env_model" ]] && export LLM_MODEL_PATH="$_env_model"
+else
+  warn ".env não encontrado na raíz do projeto — usando configurações padrão."
+  warn "Execute: cp backend/.env.example .env"
+fi
+
 log "Verificando e pre-cachendo modelos de embedding…"
 export HF_HUB_DISABLE_TELEMETRY=1
 (cd "$ROOT_DIR/backend" && "$PYTHON" scripts/ensure_models.py)
@@ -77,21 +87,20 @@ else
   export CURL_CA_BUNDLE=""
 fi
 
-MODEL_PATH="${LLM_MODEL_PATH:-backend/models/mistral-7b-instruct-v0.2.Q4_K_M.gguf}"
-if [[ ! -f "$MODEL_PATH" ]]; then
-  warn "Modelo LLM não encontrado em: $MODEL_PATH"
-  warn "O backend iniciará em STUB MODE (sem inferência real)."
-  warn "Download: $PYTHON backend/scripts/download_model.py"
-fi
-
-if [[ -f "backend/.env" ]]; then
-  ok "backend/.env encontrado — será lido pelo Pydantic-Settings no startup."
-  _env_model=$(grep -E '^[[:space:]]*LLM_MODEL_PATH[[:space:]]*=' backend/.env \
-    | tail -1 | cut -d'=' -f2- | tr -d '"'"'" | xargs 2>/dev/null || true)
-  [[ -n "$_env_model" ]] && export LLM_MODEL_PATH="$_env_model"
+_raw_model="${LLM_MODEL_PATH:-models/qwen2.5-7b-instruct-q4_k_m.gguf}"
+if [[ "$_raw_model" == /* || "$_raw_model" == backend/* ]]; then
+  MODEL_PATH="$_raw_model"
 else
-  warn "backend/.env não encontrado — usando configurações padrão."
-  warn "Execute: cp backend/.env.example backend/.env"
+  MODEL_PATH="backend/$_raw_model"
+fi
+if [[ ! -f "$MODEL_PATH" ]]; then
+  log "Modelo LLM não encontrado em: $MODEL_PATH — iniciando download (~4.7 GB)..."
+  (cd "$ROOT_DIR/backend" && "$PYTHON" scripts/download_model.py)
+  if [[ $? -ne 0 ]]; then
+    warn "Download do modelo falhou. O backend iniciará em STUB MODE (sem inferência real)."
+  else
+    ok "Modelo LLM baixado com sucesso."
+  fi
 fi
 
 check_port() {
@@ -165,8 +174,12 @@ if [[ "$AUTO_INGEST" == true ]]; then
   INGEST_RESULT=$(curl -sf --max-time 600 \
     -X POST "http://localhost:$PORT_API/api/v1/ingest" \
     -H "Content-Type: application/json" \
-    -d '{"force_reindex": false}' 2>&1 || echo '{"error": "timeout or failed"}')
-  ok "Ingest: $INGEST_RESULT"
+    -d '{"force_reindex": false}' 2>&1 || echo '{"error": "timeout or curl failed"}')
+  if [[ "$INGEST_RESULT" == *'"error"'* ]]; then
+    warn "Ingest retornou erro: $INGEST_RESULT"
+  else
+    ok "Ingest concluído: $INGEST_RESULT"
+  fi
 fi
 
 sep

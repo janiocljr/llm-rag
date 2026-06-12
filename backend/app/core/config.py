@@ -4,10 +4,12 @@ from typing import Literal
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_ROOT_ENV = Path(__file__).resolve().parents[3] / ".env"
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(_ROOT_ENV),
         env_file_encoding="utf-8",
         extra="ignore",
     )
