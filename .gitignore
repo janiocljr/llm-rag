@@ -56,3 +56,5 @@ build/
 PERGUNTAS_RAPIDAS.txt
 PERGUNTAS_TESTE.md
 
+# ── claude ───────────────────────────────────────────────────────────
+.claude/
