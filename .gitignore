@@ -49,9 +49,6 @@ dist/
 build/
 *.egg-info/
 
-# ── Claude
-.claude/
-
 # ── Misc ───────────────────────────────────────────────────────────
 .python-version
 
