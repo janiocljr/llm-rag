@@ -53,9 +53,6 @@ build/
 # ── Misc ───────────────────────────────────────────────────────────
 .python-version
 
-# ___ Claude
-.claude/
-
 # ── Local test / scratch files ────────────────────────────────────
 PERGUNTAS_RAPIDAS.txt
 PERGUNTAS_TESTE.md
