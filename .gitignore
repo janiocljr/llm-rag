@@ -50,7 +50,7 @@ build/
 *.egg-info/
 
 # ── Claude
-claude/
+.claude/
 
 # ── Misc ───────────────────────────────────────────────────────────
 .python-version
