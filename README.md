@@ -476,19 +476,6 @@ PYTHONPATH=./backend python -m pytest backend/tests/ \
 # Módulo específico
 PYTHONPATH=./backend python -m pytest backend/tests/test_config.py -v
 ```
-
-### Resultado esperado
-
-```
-✅ 109 testes passando
-✅ Cobertura ≥ 90% nos módulos core:
-   - app/core/config.py       100%
-   - app/core/text_utils.py   100%
-   - app/models/schemas.py    100%
-   - app/core/embedder.py     100%
-   - app/core/ingestion.py     90%+
-```
-
 ---
 
 ## 📚 Documentação Técnica
@@ -621,7 +608,7 @@ RETRIEVAL_FINAL_K=7         # Mais chunks no contexto do LLM
 
 ## ✉️ Contato
 
-**Autores:** Janio Lima · Arthur Damiao · Luis Felipe Rudnik · Gabryel Zanella
+**Autores:** Janio Lima · Arthur Damiao · Luiz Felipe Rudnik · Gabryel Zanella
 
 ---
 
